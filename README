@@ -1,9 +1,11 @@
 README
 
-This is the preliminary repository for the Autonomous Collaboration Engine (ACE).
+This is the preliminary repository for the Autonomous Collaboration Engine(ACE).
+(Not to be confused with the awesome project Ajax Cloud Editor)
 
 This project is is a state of transition and will be moved to the official ACE repository once the code has been cleaned up.
 
 We've gone through several architectural structures, and the mechanisms throught have to be updated to utilize the current one.
 
 Check out our information site at http://openACE.org
+

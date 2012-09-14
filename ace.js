@@ -471,6 +471,12 @@ function ace(aceID, aceType) {
 			}
 		}
 		
+		// Resolves a variable to a string output. Used to handle items that may be strings, aceID's, or even aceObjs.
+		var toStr = this.toStr = function AceAPI_toStr(objStr) {
+			if (!objStr) { return null; }
+			return data.toStr(objStr);
+		}
+		
 		// Returns an empty object template structure for the entity represented by aceID.
 		this.aceTyp = function AceAPI_aceTyp(aceID) {
 			return data.aceTyp(aceID);
@@ -854,8 +860,10 @@ function ace(aceID, aceType) {
 		
 		
 		// Resolves a variable to a string output. Used to handle items that may be strings, aceID's, or even aceObjs.
-		function toStr(objStr) {
-			if (_.isAceID(objStr)) {
+		var toStr = this.toStr = function toStr(objStr) {
+			if (!objStr) { 
+				return null;
+			} else if (_.isAceID(objStr)) {
 				return toStr(_ace(objStr));
 			} else if (_.isAceObj(objStr)) {
 				return objStr.toStr();
@@ -1822,17 +1830,29 @@ function ace(aceID, aceType) {
 		
 		// Returns the most basic text form of this AceObj.
 		this.toStr = function AceObj_toStr(itemName) {
+			var str = items.itm.str;
 			if (!itemName) {
-				if (items["itm"]["str"]) { return items["itm"]["str"]; }  // Fix. Determine best way to do this.
-				return (items.cor.description.toStr());
+				if (str && _.isString(str)) { return str; }  // Fix. Determine best way to do this.
+				str = _ACE.toStr(items.cor.description);
+				if (str) { return str; }
+				str = _ACE.toStr(items.cor.name);
+				if (str) { return str; }
+			} else {
+				str = _AceObj.get(itemName);
+				if (str) {
+					return _ACE.toStr(str);
+				} else {
+					// Fix? Take other action?
+				}
 			}
-			return _AceObj.get(itemName).toStr();  // Fix. Ensure best outcome.
+			return null;  // Fix. Alert, error handling. Fix? Default return val, etc?
+			//return _AceObj.get(itemName).toStr();  // Fix. Ensure best outcome.
 		}
 		
 		// Returns an html form of this AceObj. Experimental.
-		this.toHtm = function AceObj_toStr(itemName) {
+		this.toHtm = function AceObj_toHtm(itemName) {
 			if (!itemName) {
-				if (items["itm"]["htm"]) { return items["itm"]["htm"]; }  // Fix. Determine best way to do this.
+				return items.itm.htm || null;  // Fix. Determine best way to do this.
 			}
 		}
 		

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>openACE.org Test Page</title>
+	
+<!-- Fix. The following loading sequence will be handled automatically by the server-compiled script structure. 
+	<link type="text/css" href="http://openace.org/ui/css/jqueryui.css" rel="stylesheet" /> 
+-->
+	
+	<link type="text/css" href="http://openace.org/ui/css/custom-theme/jquery-ui-1.8.16.custom.css" rel="stylesheet" />
+	<link type="text/css" href="css/aceUI.css" rel="stylesheet" /> 
+	
+	<script src="http://openace.org/js/libs/_/_.js"></script>
+	<script src="http://openace.org/js/jQuery.js"></script>
+	<script src="http://openace.org/js/jQueryUI.js"></script>
+	<script src="ace.js"></script>
+	<script src="ace.ui.js"></script>
+	<script src="dat/ace_lib.js"></script>
+
+	
+	<script type="text/javascript">
+	
+	</script>
+</head>
+
+<body>
+	<div id="title-div">
+		<h1 id="page-title">AceObj Testing Page</h1>
+		<h3 id="msg">This page is used to test core functionality for AceObj applications.</h3>
+	</div>
+	
+	<div id="AceObj-frame">
+		<div id="tst-btn" class="aceUI" data-ui="ace_gui_btn">Test aceUI Btn</div>
+		
+		<!-- <div id="ace-ui-export" class="aceUI" data-ui="gui-btn-exp" ><h3>Export AceObj Structure</h3></div> -->
+		
+<!--
+			<div id="ace-ui-div" class="aceUI" data-ui="ace_gui_obj" data-id="typ-txt"><h3>Widget</h3></div>
+			
+			<div id="ace-controls">
+				<h3>Controls</h3>
+				<div class="not-aceObj" data-ui="gui-btn" data-id="gui-btn">{
+					"action" : "import",
+					"target" : "#ace-struct"
+				}</div>
+			</div>
+			
+			<h3>Tpl Structure Import</h3>
+			<div id="ace-struct">
+				<div class="accordion">
+					<h3><a href="#first">First header</a></h3>
+					<div>First content</div>
+					<h3><a href="#">Second header</a></h3>
+					<div>Second content</div>
+					<h3><a href="#">Third header</a></h3>
+					<div>Third content</div>
+				</div>
+			</div><!--/#ace-struct-->
+-->
+
+	</div><!--/#AceObj-frame-->
+
+	<script>
+		document.title = $("#page-title").html();
+	//	$("ace-controls").height("500px");
+	//	$("#tst-btn").AceTstBtn();
+	</script>
+</body>
+</html>

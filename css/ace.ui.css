@@ -1,0 +1,17 @@
+
+
+
+.aceObj-head-div {
+	/*background-color: black;*/
+	border:4px ridge gray;
+	border-radius: 15px;
+	background: black url(images/ui-bg_highlight-soft_44_444444_1x100.png) 50% 50% repeat-x; color: blue; font-weight: bold;
+}
+
+.aceObj-name {
+	font-size: 2.0em;
+}
+
+.aceObj-description-div {
+	font-size: 1.5em;
+}

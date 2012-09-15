@@ -9,26 +9,51 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"ace" : null,
 				"nam" : "ACE Entity",
 				"dsc" : "Fundamental object used to represent anything as an AceObj in ACE's Free-Association model.",
-				"typ" : "typ",
+				"typ" : "ent",
 				"val" : 0
 			},
 			"itm" : {},
-			"typ" : {},
+			"typ" : {"ent":""},
 			"has" : {"asp":""},
 			"lnk" : {"par":"","chd":"","rsc":"","cbr":"","cbn":"","pri":"","gol":"","deb":"","tag":"","ifl":"","fou":"","msg":""},  // Fix? Change default links?
 			"sec" : {"read":"*","write":"*","block":null},
 			"lds" : {"gui":["cor","itm","typ","has",{"lnk":["chd","pri","deb","tag","par","*"]}]},
 			"sys" : {"topSubID":"a","usr":null}
 		},
+		"typ" : {
+			"als" : ["aceTyp","type","aceType"],
+			"cor" : {
+				"nam" : "AceObj Type",
+				"dsc" : "Fundamental entity object structure used in ACE's Free-Association model. Used as a class template to instantiate AceObjs of a particular type.",
+				"typ" : "ent"
+			},
+			"has" : {
+				"cod" : ""
+			},
+			"lnk" : {
+				"using" : ""
+			}
+		},
+		"cod" : {
+			"als" : ["aceCode"],
+			"cor" : {
+				"nam" : "AceObj Code",
+				"dsc" : "Fundamental identifier used to convey basic object structure for entities represented by aceIDs in ACE's Free-Association model. Each aceID is prepended with a three-digit code that translates into a broad object type to generalize its instantiated structure and system role.",
+				"typ" : "ent"
+			},
+			"has" : {
+				"typ" : ""
+			}
+		},
 		"cmp" : {
 			"als" : ["component"],
 			"cor" : {
 				"nam" : "Component",
 				"dsc" : "Generalized abstraction used to symbolically represent any aspect or characteristic of an entity.",
-				"typ" : "cmp"
+				"typ" : "ent"
 			},
 		},
-		"seg" : {
+		"itm" : {
 			"als" : ["segment","aceSeg"],
 			"cor" : {
 				"nam" : "AceObj Segment",
@@ -36,13 +61,89 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"typ" : "cmp"
 			},
 		},
-		"typ" : {
-			"als" : ["aceTyp","type","aceType"],
+		"itm-als" : {
 			"cor" : {
-				"nam" : "AceObj Type",
-				"dsc" : "Fundamental identifier used to convey basic object structure for entities represented by aceIDs in ACE's Free-Association model. Each aceID is prepended with a three-digit code that translates into a broad object type to generalize its instantiated structure and system role.",
-				"typ" : "cmp"
-			},
+				"name" : "Alias aceID's",
+				"description" : "Alias strings registered to represent a specific system aceID for this AceObj.",
+				"typ" : "itm"
+			}
+		},
+		"itm-cor" : {
+			"cor" : {
+				"name" : "Core AceObj Properties",
+				"description" : "The most fundamental characteristics common to all ACE entities and used to identify an AceObj at the base level.",
+				"typ" : "itm"
+			}
+		},
+		"itm-itm" : {
+			"cor" : {
+				"name" : "AceObj Items",
+				"description" : "Additional properties specific to this AceObj, handled as item literals as opposed to through aceID's.",
+				"typ" : "itm"
+			}
+		},
+		"itm-typ" : {
+			"cor" : {
+				"name" : "Expanded Type Attributes",
+				"description" : "Layers of aspects that extend the categorization traits of this entity (is-a relationships).",
+				"typ" : "itm"
+			}
+		},
+		"itm-has" : {
+			"cor" : {
+				"name" : "Component Modules",
+				"description" : "Sub-components of this entity that individually resolve to another contained aceID. (has-a relationships).",
+				"typ" : "itm"
+			}
+		},
+		"itm-lnk" : {
+			"cor" : {
+				"name" : "Free-Association Links",
+				"description" : "Symbolic abstractions connecting this entity to other entities and concepts.",
+				"typ" : "itm"
+			}
+		},
+		"itm-sys" : {
+			"cor" : {
+				"name" : "System Properties",
+				"description" : "System properties used internally by ACE for this aceType, not typically visible to an application interface.",
+				"typ" : "itm"
+			}
+		},
+		"itm-sec" : {
+			"cor" : {
+				"name" : "Security Settings",
+				"description" : "All access privileges information for this AceObj.",
+				"typ" : "itm"
+			}
+		},
+		"itm-lds" : {
+			"cor" : {
+				"name" : "Loading Sequence",
+				"description" : "Specifies which items to automatically load for this entity under various conditions.",
+				"typ" : "itm"
+			}
+		},
+		"itm-alt" : {
+			"cor" : {
+				"name" : "Alternative Versions",
+				"description" : "Compatible alternatives that have been proposed or adopted in lieu of this version.",
+				"typ" : "itm"
+			}
+		},
+		"itm-mod" : {
+			"cor" : {
+				"name" : "Modified Items",
+				"description" : "Entities and components for which this entity prefers a modified compatible alternative. (Links to their aceID will redirect to the linked aceID.)",
+				"typ" : "itm"
+			}
+		},
+		"itm-all" : {
+			"cor" : {
+				"name" : "All Connections",
+				"description" : "The sum total of all entities referenced within this AceObj, organized by type.",
+				"typ" : "itm"
+			}
 		},
 		"lnk" : {
 			"als" : ["link"],
@@ -75,8 +176,11 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"als" : ["typ-cat","category"],
 			"cor" : {
 				"nam" : "Category",
-				"dsc" : "Resolves to particular classification characteristics, for use in the 'typ' segment of an object.",
-				"typ" : "typ"
+				"dsc" : "Resolves to particular classification characteristics, for use within each itm segment of an object.",
+				"typ" : "cmp"
+			}
+			"has" : {
+				"str" : null
 			}
 		},
 		"cat_lnk" : {
@@ -95,7 +199,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"typ" : "str"
 			},
 			"itm" : {
-				"string" : null,
+				"str" : null,
 			},
 			"sys" : {
 				"length" : 0,
@@ -113,7 +217,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"nam" : "aceID",
 				"dsc" : "Fundamental identifier used as a unique and universal identifier to represent each entity in ACE's Free-Association model.",
-				"typ" : "ace"
+				"typ" : "cat"
 			},
 		},
 		"nam" : {
@@ -121,7 +225,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"nam" : "Entity Name",
 				"dsc" : "Basic identifier used to loosely associate a short descriptive concept with an entity.",
-				"typ" : "nam"
+				"typ" : "cat"
 			},
 		},
 		"dsc" : {
@@ -487,102 +591,6 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"prefs" : [],  // List of all preferences that can be assigned to this account.
 				"events" : [],  // All events recorded for this account instance.
 				"actionList" : []  // All actions taken by the owner of this account.
-			}
-		},
-		"itm-als" : {
-			"cor" : {
-				"name" : "Alias aceID's",
-				"description" : "Alias strings registered to represent a specific system aceID for this AceObj.",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-cor" : {
-			"cor" : {
-				"name" : "Core AceObj Properties",
-				"description" : "The most fundamental characteristics common to all ACE entities and used to identify an AceObj at the base level.",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-sys" : {
-			"cor" : {
-				"name" : "System Properties",
-				"description" : "System properties used internally by ACE for this aceType, not typically visible to an application interface.",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-itm" : {
-			"cor" : {
-				"name" : "AceObj Items",
-				"description" : "Additional properties specific to this AceObj, not fundamental enough to be covered as core properties but more simple than .",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-typ" : {
-			"cor" : {
-				"name" : "Expanded Type Attributes",
-				"description" : "Layers of aspects that extend the categorization traits of this entity (is-a relationships).",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-has" : {
-			"cor" : {
-				"name" : "Component Modules",
-				"description" : "Sub-components of this entity that individually resolve to another contained aceID. (has-a relationships).",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-lnk" : {
-			"cor" : {
-				"name" : "Free-Association Links",
-				"description" : "Symbolic abstractions connecting this entity to other entities and concepts.",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-sec" : {
-			"cor" : {
-				"name" : "Security Settings",
-				"description" : "All access privileges information for this AceObj.",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-lds" : {
-			"cor" : {
-				"name" : "Loading Priorities",
-				"description" : "Specifies which items to automatically load for this entity under various conditions.",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-alt" : {
-			"cor" : {
-				"name" : "Alternative Versions",
-				"description" : "Compatible alternatives that have been proposed or adopted in lieu of this version.",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-mod" : {
-			"cor" : {
-				"name" : "Modified Items",
-				"description" : "Entities and components for which this entity prefers a modified compatible alternative. (Links to their aceID will redirect to the linked aceID.)",
-				"typ" : "itm-cat",
-				"value" : 0
-			}
-		},
-		"itm-all" : {
-			"cor" : {
-				"name" : "All Connections",
-				"description" : "The sum total of all entities referenced within this AceObj, organized by type.",
-				"typ" : "itm-cat",
-				"value" : 0
 			}
 		},
 		"str-name" : {

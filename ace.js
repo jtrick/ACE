@@ -754,7 +754,7 @@ function ace(aceID, aceType) {
 			typ = (items.cor && items.cor.typ) ? (_ace(items.cor.typ).toStr()) : ("typ-ent");
 			memObj.items[aceID] = _.extend((aceTyp(typ) || {}), memObj.items[aceID], items);  // Fix. Inefficient?  Use .prototype?
 						
-			_.each(items, function(lnk,key) {
+			_.each(items, function(lnkObj,itmName) {
 				if (_.indexOf(lnkTypes,key)) {  // If this is a lnk-typ category
 					var typLnk = key;
 					if (typLnk = "cor") {

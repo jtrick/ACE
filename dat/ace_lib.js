@@ -178,9 +178,10 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"nam" : "Category",
 				"dsc" : "Resolves to particular classification characteristics, for use within each itm segment of an object.",
 				"typ" : "cmp"
-			}
+			},
 			"has" : {
-				"str" : null
+				"str" : "",
+				"itm" : ""
 			}
 		},
 		"cat_lnk" : {
@@ -189,7 +190,8 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"nam" : "Link Category",
 				"dsc" : "Identifies the characteristics of a lnk to handle specifics of its particular classification.",
 				"typ" : "cat"
-			}
+			},
+			
 		},
 		"str" : {
 			"als" : ["string"],

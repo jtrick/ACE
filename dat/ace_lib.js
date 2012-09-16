@@ -20,6 +20,20 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"lds" : {"gui":["cor","itm","typ","has",{"lnk":["chd","pri","deb","tag","par","*"]}]},
 			"sys" : {"topSubID":"a","usr":null}
 		},
+		"str" : {
+			"als" : ["string"],
+			"cor" : {
+				"name" : "String",
+				"description" : "Basic string, used as fundamental component for all text-represented items in the ACE system.",
+				"typ" : "str"
+			},
+			"itm" : {
+				"str" : null,
+			},
+			"sys" : {
+				"length" : 0,
+			}
+		},
 		"typ" : {
 			"als" : ["aceTyp","type","aceType"],
 			"cor" : {
@@ -39,7 +53,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"nam" : "AceObj Code",
 				"dsc" : "Fundamental identifier used to convey basic object structure for entities represented by aceIDs in ACE's Free-Association model. Each aceID is prepended with a three-digit code that translates into a broad object type to generalize its instantiated structure and system role.",
-				"typ" : "ent"
+				"typ" : "str"
 			},
 			"has" : {
 				"typ" : ""
@@ -60,12 +74,18 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"dsc" : "The root-level object division used to segment the AceObj structure into functional component groupings. ('cor', 'lnk', 'sys', etc.)",
 				"typ" : "cmp"
 			},
+			"has" : {
+				"cod" : "itm"
+			}
 		},
 		"itm-als" : {
 			"cor" : {
 				"name" : "Alias aceID's",
 				"description" : "Alias strings registered to represent a specific system aceID for this AceObj.",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "als"
 			}
 		},
 		"itm-cor" : {
@@ -73,6 +93,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "Core AceObj Properties",
 				"description" : "The most fundamental characteristics common to all ACE entities and used to identify an AceObj at the base level.",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "cor"
 			}
 		},
 		"itm-itm" : {
@@ -80,6 +103,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "AceObj Items",
 				"description" : "Additional properties specific to this AceObj, handled as item literals as opposed to through aceID's.",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "itm"
 			}
 		},
 		"itm-typ" : {
@@ -87,6 +113,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "Expanded Type Attributes",
 				"description" : "Layers of aspects that extend the categorization traits of this entity (is-a relationships).",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "typ"
 			}
 		},
 		"itm-has" : {
@@ -94,6 +123,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "Component Modules",
 				"description" : "Sub-components of this entity that individually resolve to another contained aceID. (has-a relationships).",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "has"
 			}
 		},
 		"itm-lnk" : {
@@ -101,6 +133,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "Free-Association Links",
 				"description" : "Symbolic abstractions connecting this entity to other entities and concepts.",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "lnk"
 			}
 		},
 		"itm-sys" : {
@@ -108,6 +143,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "System Properties",
 				"description" : "System properties used internally by ACE for this aceType, not typically visible to an application interface.",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "sys"
 			}
 		},
 		"itm-sec" : {
@@ -115,6 +153,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "Security Settings",
 				"description" : "All access privileges information for this AceObj.",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "sec"
 			}
 		},
 		"itm-lds" : {
@@ -122,6 +163,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "Loading Sequence",
 				"description" : "Specifies which items to automatically load for this entity under various conditions.",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "lds"
 			}
 		},
 		"itm-alt" : {
@@ -129,6 +173,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "Alternative Versions",
 				"description" : "Compatible alternatives that have been proposed or adopted in lieu of this version.",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "alt"
 			}
 		},
 		"itm-mod" : {
@@ -136,6 +183,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "Modified Items",
 				"description" : "Entities and components for which this entity prefers a modified compatible alternative. (Links to their aceID will redirect to the linked aceID.)",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "mod"
 			}
 		},
 		"itm-all" : {
@@ -143,6 +193,9 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"name" : "All Connections",
 				"description" : "The sum total of all entities referenced within this AceObj, organized by type.",
 				"typ" : "itm"
+			},
+			"has" : {
+				"cod" : "all"
 			}
 		},
 		"lnk" : {
@@ -150,7 +203,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"name" : "ACE Link",
 				"description" : "Fundamental object used to link associated concepts between AceObj entities under ACE's Free-Association model.",
-				"typ" : "typ",
+				"typ" : "ent",
 				"value" : 0
 			},
 			"itm" : {
@@ -192,27 +245,6 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"typ" : "cat"
 			},
 			
-		},
-		"str" : {
-			"als" : ["string"],
-			"cor" : {
-				"name" : "String",
-				"description" : "Basic string, used as fundamental component for all text-represented items in the ACE system.",
-				"typ" : "str"
-			},
-			"itm" : {
-				"str" : null,
-			},
-			"sys" : {
-				"length" : 0,
-			},
-			"has" : {
-				"words" : null,
-				"concepts" : null,
-			},
-			"lnk" : {
-				
-			}
 		},
 		"ace" : {
 			"als" : ["aceID","aid","aID"],

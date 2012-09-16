@@ -727,48 +727,48 @@ function ace(aceID, aceType) {
 			var caller = callObj.caller,
 				aceID = callObj.aceID,
 				items = callObj.items,
-				lnkTypes = ["als","cor","itm","typ","has"],  // Fix! Obtain programmatically.
-				obj = {},  // Fix?
-				typ = "";
+				typ = (items.cor && items.cor.typ) ? (items.cor.typ) : ("typ-ent"),
+				lnkTypes = ["als","cor","itm","typ","has","lnk"],  // Fix! Obtain programmatically.
+				obj = null;
 				
 			if (!_.isObject(items)) { return false; }  // Fix. Error handling, notification.
 			if (memObj.items[aceID]) {
 				return memObj.aceObj[aceID];  // Fix! Handle case where object already exists in memory. Alert, merge options, fork, etc.
-				objCollision(callObj);
+				obj = objCollision(callObj);
+				aceID = obj.cor.ace;
 			} else {
-				// Fix. Handle latency.
+				obj = memObj.items[aceID] = aceTyp(aceID);
+				obj.cor.ace = aceID;
+				// Fix! Handle latency.
 			}
 			
-			
-			if (aceID == "typ-ent") { 
-				memObj.items[aceID] = items;  // Fix!!! Safety handling.
-				memObj.aceObj[aceID] = new AceObj(callObj, memObj.items[aceID]);
-				callObj.items = packItems(aceID);
-				callObj.command = "new";
-				dbCall(callObj);
-				return memObj.aceObj[callObj.aceID]; 
-			}
-			
-			
-			
-			typ = (items.cor && items.cor.typ) ? (_ace(items.cor.typ).toStr()) : ("typ-ent");
-			memObj.items[aceID] = _.extend((aceTyp(typ) || {}), memObj.items[aceID], items);  // Fix. Inefficient?  Use .prototype?
-						
-			_.each(items, function(lnkObj,itmName) {
-				if (_.indexOf(lnkTypes,key)) {  // If this is a lnk-typ category
-					var typLnk = key;
-					if (typLnk = "cor") {
-						typ = _ace(lnk.typ);  // memObj.items[aceID]
+			_.each(items, function(itms,itm) {
+				if (_.indexOf(lnkTypes,itm)) {  // If this is a lnk-typ category
+					if (itm = "als") {
+						_.each(itms, function(als) {
+							if (!setAlias(als, aceID)) {
+								// Fix! Handle alias collisions.
+							}
+						});
+					} else {
+						_.each(itms, function(lnk, cat) {
+							cat = "cat_"+cat;  // Fix?
+							if () {
+								
+							} else if (memObj.items[aceID]) {
+								// Fix! Handle alias collisions.
+							}
+						});
 					}
 					_.each(val, function(val,itm) {
 						result = data.aceCall({
-							"command" : "dat",
+							"command" : "set",
 							"aceID" : id,
 							"items" : val
 						}); 
 					});
 				} else {
-					aceType = key;
+					obj.itm = itms;  // Fix! Error, security checking, Merging, etc.
 				}
 				
 				
@@ -876,21 +876,21 @@ function ace(aceID, aceType) {
 		
 		
 		// Creates a new alias and propogates the call across this node.
-		this.setAlias = setAlias; function setAlias(alias, referTo) {
-			var refObj = _ace(referTo);
+		var setAlias = this.setAlias = function AceData_setAlias(alias, referTo) {
 			if (!_.isAceID(alias) || !_.isAceID(referTo)) { return; }
-			if (!refObj.als(alias, "check")) { refObj.als(alias, "to"); }
-			var existing = getAlias(alias);
+			var existing = getAlias(alias);  // Fix? Will resolve recursive links, which breaks simple check below...
 			if (existing) {
 				if (existing == referTo) {
-					// Fix! Handle behavior if alias already exists towards other aceID.
+					// Fix! Determine best behavior for recursive aliases.
+					return true;  // Fix?
 				} else {
-					return referTo;
+					// Fix! Handle behavior if alias already exists towards aceID other than referTo.
 				}
+				return false;  // Fix?
 			} else {
 				memObj.alias[alias] = referTo;  // Fix. Error checking, handle latency, etc.
+				return true;  // Fix?
 			}
-			// Fix. Return value accordingly
 		}
 		
 		
@@ -1000,7 +1000,7 @@ function ace(aceID, aceType) {
 		
 		
 		// Returns empty object template structure taken from the AceData instance abstraction. Attempts local action, propogating to the local db, and then sends to aceComm for central server transmission.  Will callBack to the instantiated object if latency exists.
-		this.aceTyp = aceTyp; function aceTyp(aceID) {
+		var aceTyp = this.aceTyp = function AceData_aceTyp(aceID) {
 			if (!aceID || !_.isAceID(aceID)) { aceID = "typ-ent"; }  // Fix?
 			var result = memObj.typ[aceID];
 			if (_.isObject(result)) {
@@ -1013,34 +1013,22 @@ function ace(aceID, aceType) {
 				});
 				return _.extend({}, memObj.typ[aceID] = entityCore(aceID));  // Fix. Specific handling for waiting on response? Handle via collision?
 			}
-		}//aceTyp()
-		
-		
-		// Fix! Obsolete.  Based on old model, ensure nothing is calling this and remove it.  // Returns JSON string representing aceType object template structures from the AceData abstraction if aceType represents a 'typ' ID or alias. Attempts local action, propogating to the local db, and then sends to aceComm for central server transmission.
-		this.aceType = function AceData_aceType(aceType, caller) {
-			//if (!aceType) { aceType = "typ-entity"; }  // Fix? Is this ever useful?
-			if (!isTyp(aceType)) { return false; }
-			var result = memObj.aceType[aceType];
-			if (result) {
-				return result;
-			} else if (result = db.aceType(aceType)) {
-				if (typeof(result) == 'string') {  // Fix? Storing as string on assumption that it's faster to convert than copying an object. See AceObj_new().
-					//result = memObj.aceType[aceType] = JSON.parse(result);    // Fix? See above line.
-					return memObj.aceType[aceType] = result;
-				} else {
-					// Fix. Error handling?
-				}
-			} else {
-				comm.aceType(aceType, caller);  // Message handling is returned to the caller via comm.
-				return false;  // Fix. Handle this return type and value. Specific handling for waiting on response?
-			}
-			return false;  // Fix. Handle this return type and value.
-		}//AceData_aceType()
+		}//AceData_aceTyp()
 		
 		
 		// Special case for creating new aceType 'typ' classes.
-		this.newType = function AceData_newType(aceObj, aceType) {
-			
+		this.newTyp = function AceData_newTyp(aceID) {
+			if (!aceID || !_.isAceID(aceID)) { return; }
+			var newID = "typ-"+aceID;
+			if (memObj.typ[aceID]) {
+				return;  // Fix. Handle typ collisions.
+			}
+			_.extend({}, memObj.typ[newID] = objStruct(memObj.items[altID]));
+			memObj.aceObj[aceID] = new AceObj({"typ":typ}, memObj.items[newID]);
+			callObj.items = packItems(callObj.aceID);
+			dbCall(callObj);
+			comCall(callObj);
+			return memObj.aceObj[callObj.aceID];
 		}//AceData_newType()
 		
 		
@@ -1102,7 +1090,7 @@ function ace(aceID, aceType) {
 		}
 		
 		
-		// In rare case where basic entity structure is not held in memory or local storage, the basic itm structure will be returned via this function and added to the central memObj.typ record.
+		// Returns a copy of the core entity structure. In rare case where basic entity structure is not held in memory or local storage, the basic itm structure will be returned via this function and added to the central memObj.typ record.
 		function entityCore() {  // Fix! Replace this and ensure new instance generated for waiting comm calls, later replaced during collision.
 			if (!memObj.typ["typ-ent"]) { 
 				memObj.typ["typ-ent"] = {  // Fix. Ensure object structure matches that in db.
@@ -1114,6 +1102,7 @@ function ace(aceID, aceType) {
 					"sec":{"read":"*","write":"*","block":null}
 				};
 			}
+			// Fix? Check integrity of entity structure in memory?
 			return _.extend({}, memObj.typ["typ-ent"]);
 		}
 		
@@ -1583,7 +1572,7 @@ function ace(aceID, aceType) {
 		
 	
 	// The generic base object used to instantiate all other objects used in the ACE system. callObj can represent a single aceID to load the AceObj from. If callObj is an array, this aceObj will function as a container holding aceIDs passed in that array.
-	function AceObj(callObj, items) {  // Fix. Alternative to items as arg?
+	function AceObj(callObj, items) {  // Fix! This all needs rebuilt. 
 		var _AceObj = this,
 			_ACE = ACE,  // A local instance of the closure-held ACE var from ace(). Referenced here for clarity and efficiency.
 			owner = AceObj.caller;  // Used to restrict calls to this AceObj's functions.
@@ -1595,9 +1584,10 @@ function ace(aceID, aceType) {
 		} else if (typeChk == "object") {
 			aceID = ((typeof(callObj.aceID)=="string")?(aceIDchop(callObj.aceID)):(null));
 			if (callObj.loadDepth) { loadDepth = callObj.loadDepth; }
+			_AceObj.typ = items.cor.typ = callObj.typ;  // Fix.
 		}
 		_AceObj.aceID = aceID;  // Used for loose checking.
-		_AceObj.typ = items.cor.typ = callObj.typ;  // Fix?
+		
 		
 		var objItems = {  // Items relevant only to the instantiated object. Will not be saved to memory.
 			"aceID" : aceID,

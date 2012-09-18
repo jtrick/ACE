@@ -246,7 +246,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			},
 			
 		},
-		"ace" : {
+		"cat-ace" : {
 			"als" : ["aceID","aid","aID"],
 			"cor" : {
 				"nam" : "aceID",
@@ -254,7 +254,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"typ" : "cat"
 			},
 		},
-		"nam" : {
+		"cat-nam" : {
 			"als" : ["name"],
 			"cor" : {
 				"nam" : "Entity Name",
@@ -262,20 +262,20 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"typ" : "cat"
 			},
 		},
-		"dsc" : {
+		"cat-dsc" : {
 			"als" : ["description","desc","descript"],
 			"cor" : {
 				"nam" : "Description",
 				"dsc" : "String used to more comprehensively describe an entity.",
-				"typ" : "dsc"
+				"typ" : "cat"
 			},
 		},
-		"val" : {
+		"cat-val" : {
 			"als" : ["value"],
 			"cor" : {
-				"nam" : "Entity Type",
+				"nam" : "Value",
 				"dsc" : "Core category from which this AceObj can be instantiated.",
-				"typ" : "typ"
+				"typ" : "cat"
 			},
 		},
 		"htm" : {
@@ -325,32 +325,6 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"using" : null
 			}
 		},
-		"cat" : {
-			"als" : ["category"],
-			"cor" : {
-				"name" : "AceObj Component Category",
-				"description" : "Root-level characteristics of the AceObj items structure.",
-				"typ" : "cat",
-				"value" : 0
-			},
-			"has" : {
-				"purpose" : null,
-			},
-			"lnk" : {
-				"entity" : null
-			}
-		},
-		"sub" : {
-			"cor" : {
-				"name" : "AceObj Sub-item",
-				"description" : "Aspects referenced or linked to within an AceObj Component",
-				"typ" : "sub",
-				"value" : 0
-			},
-			"has" : {
-				"purpose" : null,
-			},
-		},
 		"jsn" : {
 			"als" : ["json"],
 			"cor" : {
@@ -387,11 +361,11 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"name" : "Debate",
 				"description" : "ACE-specific mechanism for structured topical forum used to make decisions.",
-				"typ" : "deb",
+				"typ" : "ent",
 				"value" : 0
 			},
 			"has" : {
-				"alternative" : null,
+				"alt" : null,
 			},
 			"lnk" : {
 				"entity" : null
@@ -440,11 +414,11 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			}
 		},
 		"alt" : {
-			"als" : ["alt","alternative"],
+			"als" : ["alternative"],
 			"cor" : {
 				"name" : "Alternative",
 				"description" : "One of a number of possible scenarios.",
-				"typ" : "alt",
+				"typ" : "ent",
 				"value" : 0
 			},
 			"has" : {
@@ -459,7 +433,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"name" : "Option",
 				"description" : "One of a number of alternative choices, particular for use in a system or application.",
-				"typ" : "opt",
+				"typ" : "alt",
 				"value" : 0
 			},
 			"sys" : {
@@ -552,7 +526,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"name" : "ACE Contribution",
 				"description" : "Fundamental object used to track contributions within entities.",
-				"typ" : "cbn",
+				"typ" : "val",
 				"value" : 0
 			},
 			"has" : {
@@ -573,7 +547,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"name" : "ACE Contributor",
 				"description" : "Entities that made contributions to another entity.",
-				"typ" : "cbr"
+				"typ" : "ent"
 			},
 			"has" : {
 				"cbn" : null,
@@ -589,7 +563,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"name" : "User",
 				"description" : "User object for use with accounts and software systems.",
-				"typ" : "usr",
+				"typ" : "ent",
 				"value" : 0,
 				"props" : { 
 					"UserName" : "",  // The actual user name used to log into the account.
@@ -611,7 +585,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"name" : "Account",
 				"description" : "Entity used by a computer system to track user preferences and for grouping information",
-				"typ" : "acc",
+				"typ" : "ent",
 				"value" : 0,
 				"props" : { 
 					"owner" : "",  // An account will always resolve to a single owner, even if that is a group.
@@ -630,7 +604,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 		"str-name" : {
 			"cor" : {
 				"name" : "Name",
-				"description" : "The core name for this entity.",
+				"description" : "The core name for an entity.",
 				"typ": "str",
 				"value" : 0
 			},
@@ -641,7 +615,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 		"str-description" : {
 			"cor" : {
 				"name" : "Description",
-				"description" : "The core description used for this entity.",
+				"description" : "The core description used for an entity.",
 				"typ": "str",
 				"value" : 0
 			},

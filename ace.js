@@ -752,9 +752,23 @@ function ace(aceID, aceType) {
 						});
 					} else {
 						_.each(itms, function(lnk, cat) {
+							if (_.isAceID(lnk)) {
+								lnk = _ace(lnk);  // Fix. Complete this.
+							} else if (_.isString(lnk)) {
+								lnk = aceCall({
+									"command" : "new",
+									"typ" : "str",
+									"items" : {
+										"itm" : { "str" : lnk }
+									}
+								});
+								obj.itm.cat
+							} else {
+								// Fix. Handle this.
+							}
 							cat = "cat_"+cat;  // Fix?
-							if () {
-								
+							if (_ace(cat)) {
+								cat = _ace(cat);
 							} else if (memObj.items[aceID]) {
 								// Fix! Handle alias collisions.
 							}
@@ -1018,17 +1032,19 @@ function ace(aceID, aceType) {
 		
 		// Special case for creating new aceType 'typ' classes.
 		this.newTyp = function AceData_newTyp(aceID) {
-			if (!aceID || !_.isAceID(aceID)) { return; }
-			var newID = "typ-"+aceID;
-			if (memObj.typ[aceID]) {
-				return;  // Fix. Handle typ collisions.
-			}
-			_.extend({}, memObj.typ[newID] = objStruct(memObj.items[altID]));
-			memObj.aceObj[aceID] = new AceObj({"typ":typ}, memObj.items[newID]);
-			callObj.items = packItems(callObj.aceID);
-			dbCall(callObj);
-			comCall(callObj);
-			return memObj.aceObj[callObj.aceID];
+			// Fix. This is probably not necessary any more.  We can just use any existing entity and debate structure etc. directly on it?
+			// if (!aceID || !_.isAceID(aceID)) { return; }
+			// var newID = "typ-"+aceID;
+			// if (memObj.typ[aceID]) {
+				// return;  // Fix. Handle typ collisions.
+			// }
+			// memObj.typ[aceID]
+			// memObj.items[newID] = _.extend({}, memObj.typ[newID] = objStruct(altID));
+			// memObj.aceObj[aceID] = new AceObj({"typ":typ}, memObj.items[newID]);
+			// callObj.items = packItems(callObj.aceID);
+			// dbCall(callObj);
+			// comCall(callObj);
+			// return memObj.aceObj[callObj.aceID];
 		}//AceData_newType()
 		
 		

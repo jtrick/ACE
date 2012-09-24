@@ -254,10 +254,10 @@ function ace(aceID, aceType) {
 			if (callType == "array") { return data.aceCall(callObj, "container"); }  // Creates and returns an AceObj with no aceID that serves as a collection of AceObjs to handle batch operations on or route to other processes.
 			if (callType != 'object') { return; }  // Fix.  Error handling.
 			
-			// Call Redirections 
-			if (callObj["aceCall"]) {
+			// Call Redirections   // Fix. These are old.
+			if (callObj.aceCall) {
 			//	return ACE.aceCall(value);
-			} else if (callObj["command"]) {
+			} else if (callObj.command) {
 				return [data.aceCall(callObj)];
 			}
 			
@@ -265,7 +265,7 @@ function ace(aceID, aceType) {
 			if (value = callObj["get"]) {  				// Analogous to ReST: GET, or CRUD: load.
 				//log("aceCall to ACE 'get': "+value);
 				callType = typeOf(value);
-				if (callType == 'string') {  // Can be in form { "get" : "{aceID}" (, aceType:"aceType")}
+				if (_.isAceID(value)) {  // Can be in form { "get" : "{aceID}" (, aceType:"aceType")}
 					result = data.aceCall({
 						"command" : "get",
 						"aceID" : value,
@@ -378,7 +378,7 @@ function ace(aceID, aceType) {
 			if (value = callObj["del"]) {  				// Analogous to ReST: DELETE, or CRUD: delete.
 				//log("aceCall to value 'del': "+value);
 				callType = typeOf(value);
-				if (callType == 'string') { 						
+				if (_.isAceID(value) || value == "*") {  // Fix? Allow clearing cache from top-level call like this?				
 					result = data.aceCall({
 						"command" : "del",
 						"aceID" : value
@@ -716,8 +716,22 @@ function ace(aceID, aceType) {
 		
 		// The central handler for AceObj calls of 'command'=='del'.
 		function delCall(callObj) {
-			// Fix. Complete this. 
-			return memObj.aceObj[callObj.aceID];
+			var aceID = callObj.aceID;
+			if (_.isAceID(aceID)) {
+				// Fix. Complete this. Trace links to remove local instances, update UI.
+				delete memObj.aceObj[aceID];
+				delete memObj.items[aceID];
+				dbCall(callObj);
+				comCall(callObj);
+			} else if (aceID == "*") {  // Fix? Allow this to be done here?
+				// Fix! Verification alert, solidify handling, etc.
+				memObj.aceObj = {};  // Fix. Delete instantiated objects and take appropriate action.
+				memObj.items = {};  // Fix. Trace references held in local objects, remove.
+				dbCall(callObj);  // Fix. Security handling, etc.
+				// Fix. If we want to allow this, identify ideal behavior. Pass to comm? Delete objs in memory?
+			} else {
+				return null;  // Fix. Error handling, alert, appropriate return value.
+			}
 		}
 		
 		
@@ -774,13 +788,13 @@ function ace(aceID, aceType) {
 							}
 						});
 					}
-					_.each(val, function(val,itm) {
-						result = data.aceCall({
-							"command" : "set",
-							"aceID" : id,
-							"items" : val
-						}); 
-					});
+					// _.each(itms, function(val,itm) {  // Store the imported item locally.
+						// result = data.aceCall({
+							// "command" : "set",
+							// "aceID" : id,
+							// "items" : val
+						// }); 
+					// });
 				} else {
 					obj.itm = itms;  // Fix! Error, security checking, Merging, etc.
 				}
@@ -1931,6 +1945,11 @@ function ace(aceID, aceType) {
 		
 		// Sends a request to delete this entity from public reference. The associated history remains in the core dbs, but from an access perspective, this entity will no longer be available.
 		this.del = function AceObj_del() {
+			// Fix! Check prefs, flag confirmation if set, pass callback to _ACE to execute outside and clean up memory;
+			_ACE.aceCall({
+				"command" : "del",
+				"aceID" : aceID
+			});
 			log("AceObj.del() called for entity with aceID "+aceID);
 		}
 		
@@ -2294,9 +2313,11 @@ $.getScript("http://openace.org/js/jQueryUI.js", function() {
 
 // WEAK checks to verify whether a variable represents an AceObj, AceID, AceUI, etc. Returns true if thisObj is the checked type, false otherwise.
 _.mixin({  // Fix? To keep from polluting global namespace, added to _ but may be better options? Remove this and move withing ace if necessary.
-	"isAceID" : function(thisObj) {  // Fix! These are all too weak. Check if exists via ace();
-		if (!_.isString(thisObj) || thisObj.length > 100) { return false; }  // Fix. Ensure maxVal is sufficiently large. 
-		if (thisObj.indexOf("_ace")!=0 && !thisObj.indexOf("_", 1)) { return false; }
+	"isAceID" : function(thisObj) {  // Fix! These are all too weak. Check if exists via ace()?
+		if (!_.isString(thisObj) || thisObj.length > 100 || thisObj.length < 4) { return false; }  // Fix. Ensure maxVal is sufficiently large. 
+		var ch = thisObj.charAt(4);
+		if (ch != "_" && ch != "-") { return false; }  // Fix? 
+		//if (thisObj.indexOf("ace_")!=0 && !thisObj.indexOf("_", 1)) { return false; }
 		return true;
 	},
 	"isAceObj" : function(thisObj) {  // Fix! Pretty flimsy.

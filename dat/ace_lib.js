@@ -208,19 +208,18 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			},
 			"itm" : {
 				"top" : null,
-			},
-			"typ" : {
-				"cat_lnk" : null
+				"deb" : "",
+				"from" : "",
+				"to" : ""
 			},
 			"has" : {
 				"top" : null,
 				"refID" : null,
 				"owner" : null,
-				"itm-cat" : null,
+				"cat_lnk" : null,
 				"itm-sub": null
 			},
 			"lnk" : {
-				"to" : null,
 				"instance-of" : null,
 				"using" : null
 			}
@@ -361,8 +360,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"cor" : {
 				"name" : "Debate",
 				"description" : "ACE-specific mechanism for structured topical forum used to make decisions.",
-				"typ" : "ent",
-				"value" : 0
+				"typ" : "ent"
 			},
 			"has" : {
 				"alt" : null,
@@ -371,12 +369,12 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"entity" : null
 			}
 		},
-		"arg" : {
-			"als" : ["argument"],
+		"pnt" : {
+			"als" : ["point"],
 			"cor" : {
-				"name" : "Argument",
-				"description" : "Point made in regards to a particular alternative in a debate.",
-				"typ" : "arg",
+				"name" : "Debate Point",
+				"description" : "Persuasive argument made in regards to a particular alternative in a debate.",
+				"typ" : "ent",
 				"value" : 0
 			},
 			"lnk" : {
@@ -417,7 +415,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"als" : ["alternative"],
 			"cor" : {
 				"name" : "Alternative",
-				"description" : "One of a number of possible scenarios.",
+				"description" : "One of a number of possible options, scenarios, choices, etc.",
 				"typ" : "ent",
 				"value" : 0
 			},
@@ -432,7 +430,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			"als" : ["option"],
 			"cor" : {
 				"name" : "Option",
-				"description" : "One of a number of alternative choices, particular for use in a system or application.",
+				"description" : "One of a number of choice alternatives, particular for use in a system or application.",
 				"typ" : "alt",
 				"value" : 0
 			},
@@ -466,7 +464,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 				"range" : null
 			},
 			"lnk" : {
-				
+				"pri" : "",
 			}
 		},
 		"pri" : {

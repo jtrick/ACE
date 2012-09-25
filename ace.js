@@ -257,7 +257,7 @@ function ace(aceID, aceType) {
 			// Call Redirections   // Fix. These are old.
 			if (callObj.aceCall) {
 			//	return ACE.aceCall(value);
-			} else if (callObj.command) {
+			} else if (callObj.command || callObj.cmd) {  // Fix? Allow shorthand? If so, establish and obtain in data?
 				return [data.aceCall(callObj)];
 			}
 			
@@ -581,25 +581,7 @@ function ace(aceID, aceType) {
 			if ((typeOf(callObj) != 'object') || (!safetyCheck(callObj))) { return; }  // Fix.  Error handling.
 			//if (callObj.caller != AceData_aceCall.caller) { callObj.caller = AceData_aceCall.caller; } // Fix. This was from before structuring aceObj as the central logic point.
 			callObj.dataCallTime = Date.now();
-			
-			var command = callObj.command;
-			// Fix.  This was all removed when local functions were established for each call type
-				// aceObj = null,
-				// result = null,
-				// aceType = callObj.aceType,
-				// items = callObj.items;  // Fix. If setting or creating a new typ, corresponds to aceObj items structure.
-				
-			// if (typeof(aceID) == 'string') {  // All calls should have an associated aceID...
-				// aceObj = _AceData.ace(aceID);  // This handles decision-making for memory check versus instantiating new aceObj.
-				// if (!aceObj) { return; }  // Returns on security check failure or no retreived object.  // Fix. Notification, error handling, security alert
-			// } else {
-				// return; // Fix. Error handling and notification.
-			// }
-			
-			// if (typeof(items) == "array") {  // If specifying properties for 'set' or 'new'
-				// // Fix.
-				// //if (callObj.props) { ; }  // Fix. Choose best structure for passing props.
-			// }
+			var command = callObj.command || callObj.cmd;  // Fix? 
 			
 			if (!command) { 
 				// Fix. Behavior here?

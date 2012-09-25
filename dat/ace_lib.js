@@ -900,5 +900,5 @@ ACE.aceCall({  // Fix. Clearing memory on each load.
 	"cmd" : "del",
 	"aceID" : "*"
 });
-console.log(ACE.aceCall(loadCallObj));  // Fix. Temporary hack.
+ACE.aceCall(loadCallObj);  // Fix. Temporary hack.
 

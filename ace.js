@@ -578,10 +578,10 @@ function ace(aceID, aceType) {
 		
 		// Used to call the AceData abstraction for a single AceObj, handles logic and safety for calls. Attempts local action, propogating to the local db, and then sends to aceComm for central server transmission. Ultimately it makes more sense to centralize the security checking, decision-making, and propogation within this function because the object reference is never passed outside of AceAPI or AceObj so we can focus on ensuring integrity of these structures mere dependably than for those objects which we pass back to the user applications.
 		this.aceCall = function AceData_aceCall(callObj) {
-			if ((typeOf(callObj) != 'object') || (!safetyCheck(callObj))) { return; }  // Fix.  Error handling.
+			if (!_.isObject(callObj) || (!safetyCheck(callObj))) { return; }  // Fix.  Error handling.
 			//if (callObj.caller != AceData_aceCall.caller) { callObj.caller = AceData_aceCall.caller; } // Fix. This was from before structuring aceObj as the central logic point.
 			callObj.dataCallTime = Date.now();
-			var command = callObj.command || callObj.cmd;  // Fix? 
+			var command = callObj.command = (callObj.command || callObj.cmd);  // Fix? 
 			
 			if (!command) { 
 				// Fix. Behavior here?
@@ -605,7 +605,7 @@ function ace(aceID, aceType) {
 		
 		// The central handler for AceObj calls of 'command'=='get'.
 		function getCall(callObj) {
-			if (typeOf(callObj) != "object") { return; }  // Fix?
+			//if (typeOf(callObj) != "object") { return; }  // Fix? Shouldn't be necessary.
 			return _ace(callObj.aceID, callObj.caller);
 			// Fix? Complete this as a way of returning AceObj props? May not even need it though, as this function could sensibly be put in AceObj?
 		}
@@ -613,7 +613,7 @@ function ace(aceID, aceType) {
 		
 		// The central handler for AceObj calls of 'command'=='set'.
 		function setCall(callObj) {
-			if (typeOf(callObj) != "object") { return; }  // Fix?
+			// if (typeOf(callObj) != "object") { return; }  // Fix? Shouldn't be necessary.
 			if (!callObj.aceID) { return; }  // Fix?
 			var resultObj = {},
 				callItems = callObj.items,
@@ -719,7 +719,7 @@ function ace(aceID, aceType) {
 		
 		// Used when loading existing data into local system as from comm return calls or files.
 		function datCall(callObj, queIDs) {  // Fix. Error checking.
-			if (!_.isObject(callObj)) { return; }  // Fix?
+			// if (!_.isObject(callObj)) { return; }  // Fix? Shouldn't be necessary.
 			var caller = callObj.caller,
 				aceID = callObj.aceID,
 				items = callObj.items,
@@ -1472,6 +1472,7 @@ function ace(aceID, aceType) {
 					} else {
 						return null;  // Fix. Error handling
 					}
+					// Fix? Meaningful return values?
 					return thisDb.aceCall({
 						"command" : command,
 						"key" : key,
@@ -1503,9 +1504,10 @@ function ace(aceID, aceType) {
 				function localStorageDb() {
 					this.aceCall = function localStorageDb_aceCall(callObj) { 
 						if (typeOf(callObj) != 'object') { return; }  // Fix.  Error handling.
-						var command = callObj.command;
-						var key = callObj.key;
-						var value = callObj.value;
+						var command = callObj.command,
+							key = callObj.key,
+							value = callObj.value;
+							
 						if (command == "get") { return localStorage.getItem(key); }
 						if (command == "set") { return localStorage.setItem(key, value); }
 						if (command == "new") {	return localStorage.setItem(key, value); }
@@ -1547,7 +1549,7 @@ function ace(aceID, aceType) {
 			
 			// Executes command and returns results from single calls to the local database.
 			this.aceCall = function DatabaseObj_aceCall(callObj) {  // Fix! Determine best behavior for handling this callObj structure.
-				if (typeOf(callObj) != 'object') { return; }  // Fix.  Error handling.
+				if (!_.isObject(callObj)) { return; }  // Fix.  Error handling.
 				var key = callObj.aceID || callObj.key,  // Fix?
 					command = callObj.command,
 					result = null;

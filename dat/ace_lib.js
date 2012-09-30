@@ -3,23 +3,6 @@
 
 var loadCallObj = {  // Fix.  Temporary hack.
 	"dat" : {
-		"ent" : {
-			"als" : ["typ-ent","entity","aceObj"],
-			"cor" : {
-				"ace" : null,
-				"nam" : "ACE Entity",
-				"dsc" : "Fundamental object used to represent anything as an AceObj in ACE's Free-Association model.",
-				"typ" : "ent",
-				"val" : 0
-			},
-			"itm" : {},
-			"typ" : {"ent":""},
-			"has" : {"asp":""},
-			"lnk" : {"par":"","chd":"","rsc":"","cbr":"","cbn":"","pri":"","gol":"","deb":"","tag":"","ifl":"","fou":"","msg":""},  // Fix? Change default links?
-			"sec" : {"read":"*","write":"*","block":null},
-			"lds" : {"gui":["cor","itm","typ","has",{"lnk":["chd","pri","deb","tag","par","*"]}]},
-			"sys" : {"topSubID":"a","usr":null}
-		},
 		"str" : {
 			"als" : ["string"],
 			"cor" : {
@@ -225,7 +208,7 @@ var loadCallObj = {  // Fix.  Temporary hack.
 			}
 		},
 		"cat" : {
-			"als" : ["typ-cat","category"],
+			"als" : ["category"],
 			"cor" : {
 				"nam" : "Category",
 				"dsc" : "Resolves to particular classification characteristics, for use within each itm segment of an object.",

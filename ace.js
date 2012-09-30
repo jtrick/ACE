@@ -577,7 +577,7 @@ function ace(aceID, aceType) {
 		
 		
 		// Used to call the AceData abstraction for a single AceObj, handles logic and safety for calls. Attempts local action, propogating to the local db, and then sends to aceComm for central server transmission. Ultimately it makes more sense to centralize the security checking, decision-making, and propogation within this function because the object reference is never passed outside of AceAPI or AceObj so we can focus on ensuring integrity of these structures mere dependably than for those objects which we pass back to the user applications.
-		this.aceCall = function AceData_aceCall(callObj) {
+		var aceCall = this.aceCall = function AceData_aceCall(callObj) {
 			if (!_.isObject(callObj) || (!safetyCheck(callObj))) { return; }  // Fix.  Error handling.
 			//if (callObj.caller != AceData_aceCall.caller) { callObj.caller = AceData_aceCall.caller; } // Fix. This was from before structuring aceObj as the central logic point.
 			callObj.dataCallTime = Date.now();
@@ -728,6 +728,7 @@ function ace(aceID, aceType) {
 				obj = null;
 				
 			if (!_.isObject(items)) { return false; }  // Fix. Error handling, notification.
+			if (aceID.length == 3) { aceID = callObj.aceID = "typ-"+aceID; }  // Fix! Temporary hack to facilitate data shorthand quickly.
 			if (memObj.items[aceID]) {
 				return memObj.aceObj[aceID];  // Fix! Handle case where object already exists in memory. Alert, merge options, fork, etc.
 				obj = objCollision(callObj);
@@ -738,9 +739,10 @@ function ace(aceID, aceType) {
 				// Fix! Handle latency.
 			}
 			
+			// Fix. The following should be shifted into mergeObjs and handled accordingly. Different cases where loading via inheritence vs legacy instance?
 			_.each(items, function(itms,itm) {
-				if (_.indexOf(lnkTypes,itm)) {  // If this is a lnk-typ category
-					if (itm = "als") {
+				if (_.contains(lnkTypes,itm)) {  // If this is a lnk-typ category
+					if (itm == "als") {
 						_.each(itms, function(als) {
 							if (!setAlias(als, aceID)) {
 								// Fix! Handle alias collisions.
@@ -758,7 +760,7 @@ function ace(aceID, aceType) {
 										"itm" : { "str" : lnk }
 									}
 								});
-								obj.itm.cat
+								obj.itm.cat = lnk;
 							} else {
 								// Fix. Handle this.
 							}
@@ -887,7 +889,7 @@ function ace(aceID, aceType) {
 		
 		// Creates a new alias and propogates the call across this node.
 		var setAlias = this.setAlias = function AceData_setAlias(alias, referTo) {
-			if (!_.isAceID(alias) || !_.isAceID(referTo)) { return; }
+			if (!_.isAceID(referTo)) { return; } 
 			var existing = getAlias(alias);  // Fix? Will resolve recursive links, which breaks simple check below...
 			if (existing) {
 				if (existing == referTo) {
@@ -898,23 +900,18 @@ function ace(aceID, aceType) {
 				}
 				return false;  // Fix?
 			} else {
-				memObj.alias[alias] = referTo;  // Fix. Error checking, handle latency, etc.
+				// Fix. Rules, permissions, error checking, handle latency, etc.
+				memObj.alias[alias] = referTo;
 				return true;  // Fix?
 			}
 		}
 		
 		
 		// Checks for an alias and propogates the call across this node. On latency, ...
-		this.getAlias = getAlias; function getAlias(alias) {
-			if (!_.isAceID(alias)) { return; }
+		var getAlias = this.getAlias = function AceData_getAlias(alias) {
+			if (!_.isString(alias)) { return; }
 			var resolved = memObj.alias[alias];
 			return getAlias(resolved) || resolved;  // For recursive references.
-			
-			// if (resolved) {
-				 // again = 
-			// } else {
-			
-			// }
 		}
 		
 		
@@ -1021,7 +1018,7 @@ function ace(aceID, aceType) {
 				comm.ace(aceID, function(){  // Fix. Handle latency via callBack.
 					
 				});
-				return _.extend({}, memObj.typ[aceID] = entityCore(aceID));  // Fix. Specific handling for waiting on response? Handle via collision?
+				return _.extend({}, memObj.typ[aceID] = entityCore());  // Fix. Specific handling for waiting on response? Handle via collision?
 			}
 		}//AceData_aceTyp()
 		
@@ -1106,12 +1103,13 @@ function ace(aceID, aceType) {
 		function entityCore() {  // Fix! Replace this and ensure new instance generated for waiting comm calls, later replaced during collision.
 			if (!memObj.typ["typ-ent"]) { 
 				memObj.typ["typ-ent"] = {  // Fix. Ensure object structure matches that in db.
-					"cor":{"aceID":"typ-ent","typ":"typ-ent"},
-					"als":["typ-ent"],"itm":{},"typ":{},"has":{},
-					"sys":{"topSubID":"a"},
-					"lnk":{"par":{},"chd":{},"fnd":{},"ctr":{},"pri":{},"deb":{},"tag":{}},
+					"cor":{"ace":"ent","typ":"typ-ent","nam":"ACE Entity","dsc":"Fundamental object used to represent anything as an AceObj in ACE's Free-Association model."},
+					"als":["entity","aceObj"],
+					"itm":{},"typ":{},"has":{},
+					"lnk":{"par":{},"chd":{},"fnd":{},"ctr":{},"pri":{},"deb":{},"tag":{}},  // {"par":"","chd":"","rsc":"","cbr":"","cbn":"","pri":"","gol":"","deb":"","tag":"","ifl":"","fou":"","msg":""},  // Fix? Change default links?
 					"lds":{"gui":["cor","itm","typ","has",{"lnk":["chd","pri","deb","tag","par"]}]},
-					"sec":{"read":"*","write":"*","block":null}
+					"sec":{"read":"*","write":"*","block":null},
+					"sys":{"topSubID":"a","usr":null}
 				};
 			}
 			// Fix? Check integrity of entity structure in memory?
@@ -2299,7 +2297,7 @@ $.getScript("http://openace.org/js/jQueryUI.js", function() {
 _.mixin({  // Fix? To keep from polluting global namespace, added to _ but may be better options? Remove this and move withing ace if necessary.
 	"isAceID" : function(thisObj) {  // Fix! These are all too weak. Check if exists via ace()?
 		if (!_.isString(thisObj) || thisObj.length > 100 || thisObj.length < 4) { return false; }  // Fix. Ensure maxVal is sufficiently large. 
-		var ch = thisObj.charAt(4);
+		var ch = thisObj.charAt(3);
 		if (ch != "_" && ch != "-") { return false; }  // Fix? 
 		//if (thisObj.indexOf("ace_")!=0 && !thisObj.indexOf("_", 1)) { return false; }
 		return true;

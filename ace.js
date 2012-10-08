@@ -542,14 +542,8 @@ function ace(aceID, aceType) {
 		var _ace = this.ace = function AceData_ace(aceID, loadDepth) {
 			//if (!securityCheck(aceID, caller, "ace")) { return false; }  // Fix! Handle for cases of comm latency. Return AceObj. Error handling and notification.
 			if (typeof(aceID) == "string") {
-				if (!(aceID = aceIDchop(aceID))) {  // If this is an invalid aceID, return a bad object.
-					return badCall();
-				} else if (false) {  // Fix.  isTyp(aceID)) {  // If calling a 'typ' aceID, create a new AceObj of that typ. There are many instances where we may want the typ object structure for quick checks, so removed this.
-					return newCall({  // Fix. Remove this. Eliminated reliance on 'typ' designation. 
-						"command" : "new",
-						"typ" : aceID
-						//"caller" : caller
-					});
+				if (!(aceID = aceIDchop(aceID))) {  // Fix. Make efficient. Use single point for aceID check and cleanup.
+					return badCall();  // If this is an invalid aceID, return a bad object.
 				} else if (memObj.aceObj[aceID]) {  // If this AceObj exists in memory, return it.
 					return memObj.aceObj[aceID];
 				} else if (result = db.ace(aceID)) {  // If we find this aceID in the local db, instantiate it.
@@ -568,8 +562,8 @@ function ace(aceID, aceType) {
 						"caller" : caller
 					});
 				}
-			} else if (typeOf(aceID) == 'array') {  // Fix. Do we want this?
-				//return new AceObj(aceID, 'container');
+			} else if (typeOf(aceID) == 'array') {  // Fix. Do we want this? Probably not...
+				return badCall();  //return new AceObj(aceID, 'container');
 			} else {
 				return badCall();
 			}
@@ -603,11 +597,11 @@ function ace(aceID, aceType) {
 		}//AceData_aceCall()
 		
 		
-		// The central handler for AceObj calls of 'command'=='get'.
+		// The central handler for AceData calls of 'command'=='get'.
 		function getCall(callObj) {
-			//if (typeOf(callObj) != "object") { return; }  // Fix? Shouldn't be necessary.
-			return _ace(callObj.aceID, callObj.caller);
-			// Fix? Complete this as a way of returning AceObj props? May not even need it though, as this function could sensibly be put in AceObj?
+			var aceID = (callObj.aceID || callObj.ace);
+			if (!_.isAceID(aceID)) { return badCall(callObj); }
+			return _ace(aceID);
 		}
 		
 		
@@ -717,11 +711,10 @@ function ace(aceID, aceType) {
 		}
 		
 		
-		// Used when loading existing data into local system as from comm return calls or files.
+		// Used when loading existing data into local system as from db and comm return calls or files.
 		function datCall(callObj, queIDs) {  // Fix. Error checking.
 			// if (!_.isObject(callObj)) { return; }  // Fix? Shouldn't be necessary.
-			var caller = callObj.caller,
-				aceID = callObj.aceID,
+			var aceID = callObj.aceID,
 				items = callObj.items,
 				typ = (items.cor && items.cor.typ) ? (items.cor.typ) : ("typ-ent"),
 				lnkTypes = ["als","cor","itm","typ","has","lnk"],  // Fix! Obtain programmatically.
@@ -751,45 +744,37 @@ function ace(aceID, aceType) {
 					} else {
 						_.each(itms, function(lnk, cat) {
 							if (_.isAceID(lnk)) {
-								lnk = _ace(lnk);  // Fix. Complete this.
+								_ace(lnk);  // Fix? Does this ever loop perpetually?
 							} else if (_.isString(lnk)) {
-								lnk = aceCall({
-									"command" : "new",
+								lnk = newCall({
 									"typ" : "str",
 									"items" : {
 										"itm" : { "str" : lnk }
 									}
-								});
-								obj.itm.cat = lnk;
+								}).aceID();
+							} else if (_.isNumber(lnk)) {
+								lnk = newCall({
+									"typ" : "num",
+									"items" : {
+										"itm" : { "val" : lnk }
+									}
+								}).aceID();
 							} else {
 								// Fix. Handle this.
 							}
-							cat = "cat_"+cat;  // Fix?
-							if (_ace(cat)) {
-								cat = _ace(cat);
-							} else if (memObj.items[aceID]) {
-								// Fix! Handle alias collisions.
-							}
+							lnk = lnkTo({
+								"aceID" : aceID,
+								"cat" : cat,
+								"itm" : itm,
+								"lnk" : lnk
+							});
 						});
 					}
-					// _.each(itms, function(val,itm) {  // Store the imported item locally.
-						// result = data.aceCall({
-							// "command" : "set",
-							// "aceID" : id,
-							// "items" : val
-						// }); 
-					// });
 				} else {
 					obj.itm = itms;  // Fix! Error, security checking, Merging, etc.
 				}
-				
-				
-				
 			});
-			
-			memObj.aceObj[aceID] = new AceObj(callObj, memObj.items[aceID]);  // Fix! Experiment with this to determine best method for passing items.
-			unpackItems(aceID, callObj.items);  // Fix. Check for error, inflate from string and ensure not passed by reference.
-			return memObj.aceObj[aceID];
+			return obj;
 		}
 		
 		
@@ -1041,18 +1026,20 @@ function ace(aceID, aceType) {
 		}//AceData_newType()
 		
 		
+		// Adds an internl lnk reference to AceObj represented by lnkID for typLnk aspect of object with aceID.
+		function lnkTo(callObj) {
+			var aceID = (callObj.ace || callObj.aceID),
+				itm = (callObj.itm || callObj.itmCode || "lnk"),
+				cat = (callObj.cat || callObj.catID || callObj.catCode),
+				lnk = (callObj.lnk || callObj.lnkID || _AceData.nextAceID()),
+				thisObj = {};
+				
+			
+		}//AceData~lnkTo()
+		
+		
 		// Creates a new lnk object to connect an aspect of an AceObj to another.
 		function newLnk(callObj) {
-			var aceID = callObj.aceID,
-				typLnk = callObj.typLnk,
-				itmCat = (lnkCat(callObj) || "lnk"),
-				lnkID = (callObj.altID || _AceData.nextAceID()),
-				thisObj = {};
-		}
-		
-		
-		// Adds an internl lnk reference to AceObj represented by lnkID for typLnk aspect of aceID.
-		function lnkTo(callObj) {
 			var aceID = callObj.aceID,
 				typLnk = callObj.typLnk,
 				itmCat = (lnkCat(callObj) || "lnk"),
@@ -1076,6 +1063,12 @@ function ace(aceID, aceType) {
 					});
 				}
 			});
+		}
+		
+		
+		// Creates a new cat_lnk classification.
+		function newCat(callObj) {
+			
 		}
 		
 		
@@ -1737,6 +1730,9 @@ function ace(aceID, aceType) {
 		// Used to get internal properties for this entity.
 		this.get = function AceObj_get(prop) {
 			if (!items || !items.cor || !items.cor.aceID || !securityCheck(items.cor.aceID, prop)) { return false; }
+			var itm = callObj.itm,  // Fix? Just get all of this transitioned to new format and decide how to handle.
+				cat = callObj.cat;
+				
 			if (!prop) { prop == "gui"; }  // Fix. User and context-established default.
 			if (typeof(prop) == "string") {
 				if (!prop || prop == "*") {  // Fix? Ideal syntax.
@@ -1926,7 +1922,7 @@ function ace(aceID, aceType) {
 		}
 		
 		// Sends a request to delete this entity from public reference. The associated history remains in the core dbs, but from an access perspective, this entity will no longer be available.
-		this.del = function AceObj_del() {
+		this.del = function AceObj_del(callObj) {
 			// Fix! Check prefs, flag confirmation if set, pass callback to _ACE to execute outside and clean up memory;
 			_ACE.aceCall({
 				"command" : "del",
@@ -1942,7 +1938,7 @@ function ace(aceID, aceType) {
 		}
 		
 		// 
-		this.act = function AceObj_act() {
+		this.act = function AceObj_act(callObj) {
 			
 		}
 		
@@ -1952,21 +1948,21 @@ function ace(aceID, aceType) {
 		}
 		
 		// Automatically creates a parent-child relationship between this entity and another existing or newly created entity.
-		this.add = function AceObj_add() {
+		this.add = function AceObj_add(callObj) {
 			if (!rootAlias) { rootAlias = als[0] || ACE.loggedIn(); }  // Fix? May need to remove auto-execute from ACE.loggedIn / define as getter, etc.
 			log("AceObj.add() called for entity with aceID "+aceID);
 		}
 		
-		this.rem = function AceObj_rem() {
+		this.rem = function AceObj_rem(callObj) {
 			log("AceObj.rem() called for entity with aceID "+aceID);
 		}
 		
-		this.lnk = function AceObj_lnk() {
+		this.lnk = function AceObj_lnk(callObj) {
 			log("AceObj.lnk() called for entity with aceID "+aceID);
 		}
 		
 		// Creates a new typ instance for this entity and performs necessary linking operations. 
-		this.ext = function AceObj_ext() {
+		this.ext = function AceObj_ext(callObj) {
 			log("AceObj.lnk() called for entity with aceID "+aceID);
 		}
 		

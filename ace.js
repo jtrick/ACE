@@ -612,6 +612,7 @@ function ace(aceID, aceType) {
 			var resultObj = {},
 				callItems = callObj.items,
 				objItems = memObj.items[callObj.aceID];
+				
 			if (callItems) {
 				for (var item in callItems) {
 					resultObj[item] = {  // Fix. Use best callObj identifier (time, user.sub-aceID, etc. to stamp call and include sub-portion of entity that was modified.  Include also the previous value before the mod? 
@@ -642,51 +643,44 @@ function ace(aceID, aceType) {
 		
 		
 		// The central handler for AceObj calls of 'command'=='new'. Returns the newly generated AceObj.
-		function newCall(callObj) {
-			if (typeOf(callObj) != "object") { return; }  // Fix?
+		function newCall(callObj) {  // Fix.  This all needs reviewed/tested.
 			callObj.status = callObj.command = "new";
-			if (!callObj.aceID) { callObj.aceID = _AceData.nextAceID(); }
+			if (!_.isAceID(callObj.aceID || callObj.ace)) { callObj.aceID = _AceData.nextAceID(); }
 			if (!callObj.typ) { callObj.typ = "typ-ent"; }
-			var aceID = callObj.aceID,
-				typID = callObj.typ,
-				typObj = _ace(typID),
-				items = aceTyp();
+			var aceID = (callObj.aceID || callObj.ace),
+				typ = callObj.typ,
+				items = aceTyp(typ);
 				
-			items.als.push(aceID);
-			items.cor.aceID = aceID;
-			items.cor.typ = typID;
+			items.als.push(aceID);  // Fix? Add this after loading truly assigned aceID only?
+			items.cor.ace = aceID;
+			items.cor.typ = typ;
 			items.sys.topSubID = "a";
 			items.sys.created = Date.now();
 			items.sys.creator = ACE.loggedIn();
 			memObj.tempIDs[aceID] = null;
 			
+			newAceObj(_.extend(items, (callObj.items || {})), aceID);  // Fix? Ensure this works correctly in all cases.
 			
-			//if (!isTyp(callObj.aceID)) { 
-				// Fix. Handle this case. Clone AceObj represented by aceID? New AceObj of that typ?
-			//} 
-			// if (!memObj.items[aceID]) {  // Fix. Handle special cases that can occur if not in memory.
-				// var testObj = null;
-				// _ace(callObj.aceID);
-				// _AceData.aceType(callObj.aceID);
-				// if (aceID.status() != "loaded") {
-					// return; // Fix. Handle this case. Must ensure we don't asynchronously duplicate an aceID. Probably que the command and set the return call for the above object 
-				// }
-			// } 
-			if (callObj.items) {
-				// Fix. Complete this. Safety checking, special considerations.
-			} else { callObj.items = undefined; }  // Fix? Ensure $.extend() will ignore it.
-			
-			if (!memObj.items[typID]) { memObj.items[typID] = null; }  // Fix? Should never happen.
-			if (typObj.status() == "loaded") { 
-				memObj.items[aceID] = _.extend({}, items, memObj.items[typID], callObj.items);  // Fix? Ensure this works correctly in all cases. Should secure a closure and be passed by reference into the AceObj.
-			} else {  
-				// Fix. Pass callback to this object to execute once it's loaded completely. Also account for bad objects, offline, etc.
-			}
-			memObj.aceObj[aceID] = new AceObj(callObj, memObj.items[aceID]);
-			callObj.items = packItems(callObj.aceID);
+			callObj.items = packItems(aceID);
 			dbCall(callObj);
 			comCall(callObj);
-			return memObj.aceObj[callObj.aceID];
+			return memObj.aceObj[aceID];
+		}
+		
+		
+		// Used to instantiate an AceObj into active memory.  Does not propogate the instance, just centralizes the process to a single point.
+		function newAceObj(items, aceID) {
+			if (!_.isObject(items)) { items = entityCore(); }
+			if (!_.isAceID(aceID)) {
+				aceID = (_.isObject(items.cor) && _.isAceID(items.cor.ace)) ? (items.cor.ace) : (_AceData.nextAceID()); 
+			}
+			if (memObj.items[aceID]) {
+				return badCall();  // Fix. Handle collisions, notification, etc. 
+			} else {
+				items.cor.ace = aceID;
+			}
+			memObj.items[aceID] = items;
+			return memObj.aceObj[aceID] = new AceObj(aceID, memObj.items[aceID]);
 		}
 		
 		
@@ -1000,10 +994,14 @@ function ace(aceID, aceType) {
 			} else if (_.isObject(memObj.aceObj[aceID]) && memObj.aceObj[aceID].ready()) {
 				return _.extend({}, memObj.typ[aceID] = objStruct(memObj.items[altID]));
 			} else {
+				result = _.extend({}, memObj.typ[aceID] = entityCore());  // Fix. Specific handling for waiting on response? Handle via collision?
 				comm.ace(aceID, function(){  // Fix. Handle latency via callBack.
-					
+					mergeObjs({
+						"aceID" : aceID,  // Fix. Complete this, work out best mechanisms.
+						"memItems" : result
+					});
 				});
-				return _.extend({}, memObj.typ[aceID] = entityCore());  // Fix. Specific handling for waiting on response? Handle via collision?
+				return result;
 			}
 		}//AceData_aceTyp()
 		
@@ -1094,7 +1092,7 @@ function ace(aceID, aceType) {
 		
 		// Returns a copy of the core entity structure. In rare case where basic entity structure is not held in memory or local storage, the basic itm structure will be returned via this function and added to the central memObj.typ record.
 		function entityCore() {  // Fix! Replace this and ensure new instance generated for waiting comm calls, later replaced during collision.
-			if (!memObj.typ["typ-ent"]) { 
+			if (!memObj.typ["typ-ent"]) {  // Fix? Simply "ent" instead of "typ-ent"?
 				memObj.typ["typ-ent"] = {  // Fix. Ensure object structure matches that in db.
 					"cor":{"ace":"ent","typ":"typ-ent","nam":"ACE Entity","dsc":"Fundamental object used to represent anything as an AceObj in ACE's Free-Association model."},
 					"als":["entity","aceObj"],
@@ -1106,7 +1104,7 @@ function ace(aceID, aceType) {
 				};
 			}
 			// Fix? Check integrity of entity structure in memory?
-			return _.extend({}, memObj.typ["typ-ent"]);
+			return _.extend({}, memObj.typ["typ-ent"], {"cor":{"ace":"","typ":"typ-ent","nam":"","dsc":""},"als":[]});  // Fix? Added 3rd obj to nullify cor/als properties of returned structure.
 		}
 		
 		
@@ -2167,11 +2165,11 @@ function ace(aceID, aceType) {
 		
 		
 		// Used as a shortcut for making basic ace calls to this object's aceCall function.
-		this.ace = function AceComm_ace(aceID, caller) {
+		this.ace = function AceComm_ace(aceID, callBack) {
 			_AceComm.aceCall({
 				"command" : "get",
 				"aceID" : aceID,
-				"caller" : caller  // Message handling is returned to the caller via this method.
+				"callBack" : callBack  // Once the object with aceID is returned and loaded, this method will be executed.
 			});
 		}
 		

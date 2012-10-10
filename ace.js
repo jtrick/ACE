@@ -721,9 +721,7 @@ function ace(aceID, aceType) {
 				obj = objCollision(callObj);
 				aceID = obj.cor.ace;
 			} else {
-				obj = memObj.items[aceID] = aceTyp(aceID);
-				obj.cor.ace = aceID;
-				// Fix! Handle latency.
+				obj = newAceObj(aceTyp(typ), aceID);
 			}
 			
 			// Fix. The following should be shifted into mergeObjs and handled accordingly. Different cases where loading via inheritence vs legacy instance?
@@ -879,8 +877,12 @@ function ace(aceID, aceType) {
 				}
 				return false;  // Fix?
 			} else {
-				// Fix. Rules, permissions, error checking, handle latency, etc.
+				// Fix! Rules, permissions, error checking, handle latency, etc.
 				memObj.alias[alias] = referTo;
+				var obj = memObj.aceObj[referTo];
+				if (isAceObj(obj)) {
+					obj.als();
+				}
 				return true;  // Fix?
 			}
 		}
@@ -1574,20 +1576,19 @@ function ace(aceID, aceType) {
 	}//AceData
 		
 	
-	// The generic base object used to instantiate all other objects used in the ACE system. callObj can represent a single aceID to load the AceObj from. If callObj is an array, this aceObj will function as a container holding aceIDs passed in that array.
+	// The generic API object used to interact with other objects used in the ACE system. callObj can represent a single aceID to load the AceObj from.
 	function AceObj(callObj, items) {  // Fix! This all needs rebuilt. 
 		var _AceObj = this,
 			_ACE = ACE,  // A local instance of the closure-held ACE var from ace(). Referenced here for clarity and efficiency.
-			owner = AceObj.caller;  // Used to restrict calls to this AceObj's functions.
-		var aceID = null,
-			typeChk = typeOf(callObj),
+			aceID = null,
 			loadDepth = 1;
-		if (typeChk == "string") {  // Fix? May want to always ensure callObj is an object?
-			aceID = aceIDchop(callObj);  // new String(callObj);  // Fix. May not be necessary to duplicate this. Check whether simple string will track by value rather than by reference for all environments.
-		} else if (typeChk == "object") {
-			aceID = ((typeof(callObj.aceID)=="string")?(aceIDchop(callObj.aceID)):(null));
+			
+		if (_.isAceID(callObj)) {
+			aceID = aceIDchop(callObj);  // Fix? May not be necessary to duplicate this.
+		} else if (_.isObject(callObj)) {
+			aceID = (_.isString(callObj.aceID))?(aceIDchop(callObj.aceID)):(null));
 			if (callObj.loadDepth) { loadDepth = callObj.loadDepth; }
-			_AceObj.typ = items.cor.typ = callObj.typ;  // Fix.
+			_AceObj.typ = (items.cor.typ || callObj.typ || null);  // Fix. Force type and load those items if not set?
 		}
 		_AceObj.aceID = aceID;  // Used for loose checking.
 		
@@ -1597,7 +1598,7 @@ function ace(aceID, aceType) {
 			"status" : "initializing",  // 'loaded', 'bad', 'new', 'waiting', 'offline', 'container', 'mismatch', 'sys', etc. On loading, this status will be modified by various events.
 			"contains" : [],  // Used to store application-associated aceIDs and their representative aceObj's if being used as a container.
 			"count" : 0,  // If being used as a container, this will store a running count of "contains".
-			"aceObjs" : { }, // All aceObj items linked to by this aceObj, referenced by their aceID. Used to quicken resolution calls to aceObjs held in the primary memObj.
+			// Fix.  Moved this into items.  "aceObjs" : { }, // All aceObj items linked to by this aceObj, referenced by their aceID. Used to quicken resolution calls to aceObjs held in the primary memObj.
 			"modified" : false
 		};
 		
@@ -1650,24 +1651,7 @@ function ace(aceID, aceType) {
 		
 		// Initializes the object.
 		function initialize() {
-			
-			return _AceObj.state = objItems.status = "loaded";  // Fix. Integrate new structure.
-			
-			
-			var status = null;
-			
-			if (typeChk == 'object') {  // Used for passing callObjs directly into aceObjs.
-				_AceObj.load(callObj);
-				_AceObj.state = objItems.status = "initialized";
-			} else if (!aceID || aceID == "_system_" || status == "sys") {  // Fix. This may now be pointless. Determine best reaction.
-				aceID = "_system_";  // Fix?
-				status = "sys";
-				// Fix.  Complete this.
-			} else if (status == "bad") {
-				// Fix. Complete this.
-			} else {
-				_AceObj.state = objItems.status = "bad";  // Fix. Error handling, default behavior.
-			}
+			return _AceObj.state = objItems.status;  //  = "loaded";  // Fix. Integrate new structure.
 		}
 		
 		
@@ -2026,18 +2010,24 @@ function ace(aceID, aceType) {
 			return _AceObj;  // Fix? Returning _AceObj makes statements chainable, but may want optimal way to verify?
 		}
 		
-		// Used to propose a new alias for this entity or return an array of existing aliases if called with no arguments. command can be "to", "check", "from", "del", defaults to "to". 
-		this.als = this.alias = function AceObj_alias(alsID, command) {  // Fix. 
-			var alsArray = items.als;
-			if (!command && !command) { return ((_.isArray(alsArray))?(alsArray.slice(0)):([])); }  // Fix?
-			if (!command) { command = "to"; }
-			if (!alsID || alsID == "auto") { alsID = _AceObj.nextAceID(); }
-			if (!_isArray(alsArray)) { alsArray = items.als = []; }
-			if (command == "to") {
-				alsArray.push(alsID);  // Fix. Sorting order?
-				if (!ACE.als(alsID)) { ACE.als(alsID, aceID); }
+		// Used to propose a new alias for this entity or return an array of existing aliases if called with no arguments. command can be "new", "to", "check", "from", "del", defaults to "new". 
+		this.als = this.alias = function AceObj_alias(callObj) {
+			if (_.isString(callObj)) { callObj = {"als":callObj}; }
+			if (!_.isObject(callObj)) { return; }
+			var alsArray = ((_.isArray(items.als))?(items.als):(items.als=[])),
+				command = (callObj.command || callObj.cmd || "new"),
+				alias = (callObj.alias || callObj.als);
+				
+			//if (!command && !command) { return ((_.isArray(alsArray))?(alsArray.slice(0)):([])); }  // Fix?
+			//if (!alias || alias == "auto") { alias = _AceObj.nextAceID(); }
+			if (command == "new") {
+				alsArray.push(alias);  // Fix. Sorting order?
+				return ACE.als(alias, aceID);
+			} else if (command == "to") {
+				alsArray.push(alias);  // Fix. Sorting order?
+				if (!ACE.als(alias)) { ACE.als(alias, aceID); }
 			} else if (command == "check") {
-				return (_.indexOf(alsArray, alsID)) ? (true) : (false);
+				return (_.indexOf(alsArray, alias)) ? (true) : (false);
 			} else if (command == "del") {
 				// Fix. Handle this. Should never actually remove an alias, as it's useful for obscure references. (Unless replacing for new requested use?)
 			} else if (command == "from") {

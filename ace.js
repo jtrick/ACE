@@ -563,9 +563,9 @@ function ace(aceID, aceType) {
 					});
 				}
 			} else if (typeOf(aceID) == 'array') {  // Fix. Do we want this? Probably not...
-				return badCall();  //return new AceObj(aceID, 'container');
+				return badCall(aceID[0]);  //  Fix.  return new AceObj(aceID, 'container');
 			} else {
-				return badCall();
+				return badCall(aceID);
 			}
 		}//AceData_ace()
 		
@@ -675,12 +675,15 @@ function ace(aceID, aceType) {
 				aceID = (_.isObject(items.cor) && _.isAceID(items.cor.ace)) ? (items.cor.ace) : (_AceData.nextAceID()); 
 			}
 			if (memObj.items[aceID]) {
-				return badCall();  // Fix. Handle collisions, notification, etc. 
+				return badCall(aceID);  // Fix! Handle collisions, notification, etc.
+				objCollision({
+					// Fix.
+				});
 			} else {
-				items.cor.ace = aceID;
+				items.cor.ace = aceID;  // Fix? Ensure items.cor is always the correct object.
 			}
 			memObj.items[aceID] = items;
-			return memObj.aceObj[aceID] = new AceObj(aceID, memObj.items[aceID]);
+			return memObj.aceObj[aceID] = new AceObj(memObj.items[aceID]);
 		}
 		
 		
@@ -771,13 +774,16 @@ function ace(aceID, aceType) {
 		
 		
 		// Used to return an empty or faulty AceObj when appropriate.
-		function badCall(callObj) {
-			var typChk = null;
-			callObj = {
-				"callObj" : callObj,  // Fix? Stringify?
-				"status" : "bad"
+		function badCall(aceID) {
+			var items = {
+				"cor" : {
+					"ace" : aceID,
+					"nam" : "Bad AceObj",
+					"dsc" : "There was an error loading this aceObj.",
+					"typ" : "bad"
+				}
 			};
-			return new AceObj(callObj, {});
+			return new AceObj(items);
 		}
 		
 		
@@ -880,7 +886,7 @@ function ace(aceID, aceType) {
 				// Fix! Rules, permissions, error checking, handle latency, etc.
 				memObj.alias[alias] = referTo;
 				var obj = memObj.aceObj[referTo];
-				if (isAceObj(obj)) {
+				if (_.isAceObj(obj)) {
 					obj.als();
 				}
 				return true;  // Fix?
@@ -1577,25 +1583,19 @@ function ace(aceID, aceType) {
 		
 	
 	// The generic API object used to interact with other objects used in the ACE system. callObj can represent a single aceID to load the AceObj from.
-	function AceObj(callObj, items) {  // Fix! This all needs rebuilt. 
+	function AceObj(items, loadDepth) {
 		var _AceObj = this,
-			_ACE = ACE,  // A local instance of the closure-held ACE var from ace(). Referenced here for clarity and efficiency.
-			aceID = null,
-			loadDepth = 1;
+			_ACE = ACE;  // A local instance of the closure-held ACE var from ace(). Referenced here for clarity and efficiency.
 			
-		if (_.isAceID(callObj)) {
-			aceID = aceIDchop(callObj);  // Fix? May not be necessary to duplicate this.
-		} else if (_.isObject(callObj)) {
-			aceID = (_.isString(callObj.aceID))?(aceIDchop(callObj.aceID)):(null));
-			if (callObj.loadDepth) { loadDepth = callObj.loadDepth; }
-			_AceObj.typ = (items.cor.typ || callObj.typ || null);  // Fix. Force type and load those items if not set?
-		}
-		_AceObj.aceID = aceID;  // Used for loose checking.
+		if (!_.isObject(items) || !_.isObject(items.cor)) { return; }  // Fix! Error handling and notification.
 		
+		// The following are used for loose checking by external viewing. Not reliable unless frozen. Freeze?
+		_AceObj.aceID = items.cor.ace;  
+		_AceObj.typ = items.cor.typ;
+		_AceObj.status = (_AceObj.typ == "bad")?("bad"):("initializing");
 		
 		var objItems = {  // Items relevant only to the instantiated object. Will not be saved to memory.
-			"aceID" : aceID,
-			"status" : "initializing",  // 'loaded', 'bad', 'new', 'waiting', 'offline', 'container', 'mismatch', 'sys', etc. On loading, this status will be modified by various events.
+			"status" : _AceObj.status,  // 'initializing', 'loaded', 'bad', 'new', 'waiting', 'offline', 'container', 'mismatch', 'sys', etc. On loading, this status will be modified by various events.
 			"contains" : [],  // Used to store application-associated aceIDs and their representative aceObj's if being used as a container.
 			"count" : 0,  // If being used as a container, this will store a running count of "contains".
 			// Fix.  Moved this into items.  "aceObjs" : { }, // All aceObj items linked to by this aceObj, referenced by their aceID. Used to quicken resolution calls to aceObjs held in the primary memObj.

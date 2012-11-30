@@ -8,7 +8,7 @@
 var ACE = ace();
 
 var testObj = ace({
-	"command" : "new",
+	"cmd" : "new",
 	"aceType" : "task"
 });
 
@@ -73,7 +73,7 @@ function ace(aceID, aceType) {
 			return;  // Fix. Error handling, Notification.
 		}
 	} else if (argType == 'object') {
-		if ((aceID.command) || aceID.aceCall) {
+		if ((aceID.cmd) || aceID.aceCall) {
 			result = ACE.aceCall(aceID);
 		} else if (aceID.login) {
 			result = ACE.userLogin(aceID);  // Fix? Handle login result additionally?
@@ -257,7 +257,8 @@ function ace(aceID, aceType) {
 			// Call Redirections   // Fix. These are old.
 			if (callObj.aceCall) {
 			//	return ACE.aceCall(value);
-			} else if (callObj.command || callObj.cmd) {  // Fix? Allow shorthand? If so, establish and obtain in data?
+			} else if (callObj.cmd || callObj.command) {  // Fix? Allow shorthand? If so, establish and obtain in data?
+				callObj.cmd = (callObj.cmd || callObj.command);
 				return [data.aceCall(callObj)];
 			}
 			
@@ -267,7 +268,7 @@ function ace(aceID, aceType) {
 				callType = typeOf(value);
 				if (_.isAceID(value)) {  // Can be in form { "get" : "{aceID}" (, aceType:"aceType")}
 					result = data.aceCall({
-						"command" : "get",
+						"cmd" : "get",
 						"aceID" : value,
 						"typ" : callObj.aceType
 					}); 
@@ -275,7 +276,7 @@ function ace(aceID, aceType) {
 				} else if (callType == 'object') {  
 					if (aceID = value["aceID"]) {  // Single nested call { "get" : { "aceID":"{aceID}" } }
 						result = data.aceCall({
-							"command" : "get",
+							"cmd" : "get",
 							"aceID" : aceID
 						});
 					}
@@ -286,14 +287,14 @@ function ace(aceID, aceType) {
 						callType = typeOf(thisItem = value[key]);
 						if (callType == 'string') {  // { "get" : [ "{aceID}", "{aceID}", ... ] }
 							result = data.aceCall({
-								"command" : "get",
+								"cmd" : "get",
 								"aceID" : thisItem
 							});
 							resultsArray.push(result);
 						} else if (callType == 'object') {  // { "get" : [ {"aceID":"{aceID}"}, {"aceID":"{aceID}"}, ... ] }
 							if (thisItem["aceID"]) {
 								result = data.aceCall({
-									"command" : "get",
+									"cmd" : "get",
 									"aceID" : thisItem["aceID"]
 								});
 								resultsArray.push(result);
@@ -304,7 +305,7 @@ function ace(aceID, aceType) {
 							// Fix. Error handling.
 						}
 						/*result = data.aceCall({  // Fix.  Left from previos structure, check.
-							"command" : "get",
+							"cmd" : "get",
 							"aceID" : value[key]
 						}); */
 					} 
@@ -319,7 +320,7 @@ function ace(aceID, aceType) {
 					for (aceID in value) { 
 						if (typeOf(commandBlock = value[aceID]) == 'object') {
 							result = data.aceCall({
-								"command" : "set",
+								"cmd" : "set",
 								"aceID" : aceID,
 								"items" : value[aceID]  // Fix? Parse the individual prop:value pairs here?
 							}); 
@@ -344,7 +345,7 @@ function ace(aceID, aceType) {
 									if (typeOf(key = commandBlock[i]) == 'object') {
 										aceID = (key.aceID || key.alias || _AceAPI.nextAceID());  // Fix. Remove alias and aceID items from commandBlock, resolve conflicts, duplicates, etc.
 										result = data.aceCall({
-											"command" : "new",
+											"cmd" : "new",
 											"typ" : aceType,
 											"aceID" : aceID,
 											"items" : key  // Fix? Parse the individual prop:value pairs here?
@@ -360,7 +361,7 @@ function ace(aceID, aceType) {
 						} else if (typeOf(commandBlock) == 'object') {  // Nested objects with proposed alias as keys { "new" : { "{aceType}":{"aceID":{"property":"value", ...}, "alias":{"property":"value", ...}, ...} } }
 							for (aceID in commandBlock) {
 								result = data.aceCall({
-									"command" : "new",
+									"cmd" : "new",
 									"typ" : aceType,
 									"aceID" : aceID,
 									"items" : commandBlock[aceID]
@@ -380,14 +381,14 @@ function ace(aceID, aceType) {
 				callType = typeOf(value);
 				if (_.isAceID(value) || value == "*") {  // Fix? Allow clearing cache from top-level call like this?				
 					result = data.aceCall({
-						"command" : "del",
+						"cmd" : "del",
 						"aceID" : value
 					});
 					resultsArray.push(result);
 				} else if (callType == 'object') {
 					for (key in value) { 
 						result = data.aceCall({
-							"command" : "del",
+							"cmd" : "del",
 							"aceID" : value[key]
 						}); 
 						resultsArray.push(result);
@@ -400,7 +401,7 @@ function ace(aceID, aceType) {
 				if (_.isObject(value)) {
 					_.each(value, function(items,id) {
 						result = data.aceCall({
-							"command" : "dat",
+							"cmd" : "dat",
 							"aceID" : id,
 							"items" : items
 						});
@@ -454,7 +455,7 @@ function ace(aceID, aceType) {
 		// Used to register and remove AceUI elements, send commands to and otherwise access the UI system associated with this ACE login.
 		this.ui = function AceAPI_ui(callObj) {
 			if (!_.isObject(callObj)) { return; }
-			var command = callObj.command,
+			var cmd = (callObj.cmd || callObj.command),
 				uiType = callObj.uiType,
 				domElement = callObj.domElement,
 				uiID = callObj.uiID,
@@ -548,7 +549,7 @@ function ace(aceID, aceType) {
 					return memObj.aceObj[aceID];
 				} else if (result = db.ace(aceID)) {  // If we find this aceID in the local db, instantiate it.
 					return datCall({
-						"command" : "dat",
+						"cmd" : "dat",
 						"aceID" : aceID,
 						"items" : result,
 						"loadDepth" : loadDepth,
@@ -556,7 +557,7 @@ function ace(aceID, aceType) {
 					});
 				} else {  // Otherwise, send a 'get' call through to comm which returns a waiting AceObj.
 					return comCall({
-						"command" : "get",
+						"cmd" : "get",
 						"aceID" : aceID,
 						"loadDepth" : loadDepth,
 						"caller" : caller
@@ -575,19 +576,19 @@ function ace(aceID, aceType) {
 			if (!_.isObject(callObj) || (!safetyCheck(callObj))) { return; }  // Fix.  Error handling.
 			//if (callObj.caller != AceData_aceCall.caller) { callObj.caller = AceData_aceCall.caller; } // Fix. This was from before structuring aceObj as the central logic point.
 			callObj.dataCallTime = Date.now();
-			var command = callObj.command = (callObj.command || callObj.cmd);  // Fix? 
+			var cmd = callObj.cmd = (callObj.cmd || callObj.command);  // Fix? 
 			
-			if (!command) { 
+			if (!cmd) { 
 				// Fix. Behavior here?
-			} else if (command == "get") {							// command == "get"
+			} else if (cmd == "get") {							// command == "get"
 				return getCall(callObj);
-			} else if (command == "set") {							// command == "set"
+			} else if (cmd == "set") {							// command == "set"
 				return setCall(callObj);
-			} else if (command == "new") {							// command == "new"
+			} else if (cmd == "new") {							// command == "new"
 				return newCall(callObj);
-			} else if (command == "del") {							// command == "del" 
+			} else if (cmd == "del") {							// command == "del" 
 				return delCall(callObj);
-			} else if (command == "dat") {							// command == "dat" 
+			} else if (cmd == "dat") {							// command == "dat" 
 				return datCall(callObj);
 			} else {
 				// Fix. Handling for incorrect commands.
@@ -597,7 +598,7 @@ function ace(aceID, aceType) {
 		}//AceData_aceCall()
 		
 		
-		// The central handler for AceData calls of 'command'=='get'.
+		// The central handler for AceData calls of 'cmd'=='get'.
 		function getCall(callObj) {
 			var aceID = (callObj.aceID || callObj.ace);
 			if (!_.isAceID(aceID)) { return badCall(callObj); }
@@ -605,7 +606,7 @@ function ace(aceID, aceType) {
 		}
 		
 		
-		// The central handler for AceObj calls of 'command'=='set'.
+		// The central handler for AceObj calls of 'cmd'=='set'.
 		function setCall(callObj) {
 			// if (typeOf(callObj) != "object") { return; }  // Fix? Shouldn't be necessary.
 			if (!callObj.aceID) { return; }  // Fix?
@@ -642,9 +643,9 @@ function ace(aceID, aceType) {
 		}
 		
 		
-		// The central handler for AceObj calls of 'command'=='new'. Returns the newly generated AceObj.
+		// The central handler for AceObj calls of 'cmd'=='new'. Returns the newly generated AceObj.
 		function newCall(callObj) {  // Fix.  This all needs reviewed/tested.
-			callObj.status = callObj.command = "new";
+			callObj.status = callObj.cmd = "new";
 			if (!_.isAceID(callObj.aceID || callObj.ace)) { callObj.aceID = _AceData.nextAceID(); }
 			if (!callObj.typ) { callObj.typ = "typ-ent"; }
 			var aceID = (callObj.aceID || callObj.ace),
@@ -687,7 +688,7 @@ function ace(aceID, aceType) {
 		}
 		
 		
-		// The central handler for AceObj calls of 'command'=='del'.
+		// The central handler for AceObj calls of 'cmd'=='del'.
 		function delCall(callObj) {
 			var aceID = callObj.aceID;
 			if (_.isAceID(aceID)) {
@@ -781,6 +782,9 @@ function ace(aceID, aceType) {
 					"nam" : "Bad AceObj",
 					"dsc" : "There was an error loading this aceObj.",
 					"typ" : "bad"
+				},
+				"sys" : {
+					"topSubAlias" : null
 				}
 			};
 			return new AceObj(items);
@@ -798,9 +802,9 @@ function ace(aceID, aceType) {
 			if (!memObj.aceObj[callObj.aceID]) {
 				// Fix. Error handling. Create new?
 			}
-			if (!callObj.command || callObj.command == "db") { callObj.command = "get"; }  // Fix? May want to return rather than defaulting to 'get' call?
+			if (!callObj.cmd || callObj.cmd == "db") { callObj.cmd = "get"; }  // Fix? May want to return rather than defaulting to 'get' call?
 			result = db.aceCall(callObj);
-			if (callObj.command == "get") {  // Fix? Place logic elsewhere?
+			if (callObj.cmd == "get") {  // Fix? Place logic elsewhere?
 				memObj.aceObj[callObj.aceID] = result;
 			}
 			return memObj.aceObj[callObj.aceID];
@@ -819,12 +823,12 @@ function ace(aceID, aceType) {
 				memObj.aceObj[aceID] = new AceObj({
 					"aceID" : aceID,
 					"status" : "waiting",
-					"command" : "com"
+					"cmd" : "com"
 				}, memObj.items[aceID]);
 			}
-			if (!callObj.command || callObj.command == "com") { callObj.command = "get"; }
+			if (!callObj.cmd || callObj.cmd == "com") { callObj.cmd = "get"; }
 			comm.aceCall({
-				"command" : "get",
+				"cmd" : "get",
 				"aceID" : aceID,
 				"caller" : memObj.aceObj[aceID]  // Fix. Pass callBack to handle latency.
 			});
@@ -1147,20 +1151,20 @@ function ace(aceID, aceType) {
 			var caller = callObj.caller,
 				aceID = callObj.aceID,
 				aceObj = callObj.aceObj,
-				command = callObj.command;
+				cmd = (callObj.cmd || callObj.command);
 			
-			if (!command) { 
+			if (!cmd) { 
 				// Fix. Behavior here?
-			} else if (command == "get") {
+			} else if (cmd == "get") {
 				
-			} else if (command == "set") {
+			} else if (cmd == "set") {
 				
-			} else if (command == "new") {
+			} else if (cmd == "new") {
 				//if (!callObj.aceType) { callObj.aceType = 'typ-entity'; }  // Fix! Check whether this update is passed by reference to the callObj itself.
 				
-			} else if (command == "del") {
+			} else if (cmd == "del") {
 				
-			} else if (command == "dat") {  // Fix? May never call this from here.
+			} else if (cmd == "dat") {  // Fix? May never call this from here.
 				
 			} else {
 				// Fix! Abort or correct.
@@ -1231,7 +1235,7 @@ function ace(aceID, aceType) {
 				if (!userID) { return; }  // Fix! Security handling, alert.
 				userHash = getUserHash(userID);
 				result = db.aceCall({  // Save pertinent objects to local db to secure AceCryptObj items.
-					"command" : "get",
+					"cmd" : "get",
 					"key" : "sys-AceCryptObj"
 				});
 				if (!result) { return false; }  // Fix. Error handling, notification alert for cases where existing obj structure is expected.
@@ -1262,12 +1266,12 @@ function ace(aceID, aceType) {
 				log.push({
 					"dateTime" : cryptStart,
 					"userID" : userID,
-					"command" : "encrypt",
+					"cmd" : "encrypt",
 					"callKey" : "callKey",
 					"timeSpent" : (cryptStart - Date.now())
 				});
 				db.aceCall({  // Save pertinent objects to local db to secure AceCryptObj items.
-					"command" : "set",
+					"cmd" : "set",
 					"key" : "sys-AceCryptObj",
 					"value" : CryptoJS.AES.encrypt(JSON.stringify([keyRing,log]), CryptoJS.SHA256(getUserHash(userID)).toString(CryptoJS.enc.Base64))  // Fix? Originally had encryptionStack as 1st item in array. See obj vars above.
 				});
@@ -1285,7 +1289,7 @@ function ace(aceID, aceType) {
 				log.push({
 					"dateTime" : cryptStart,
 					"userID" : userID,
-					"command" : "decrypt",
+					"cmd" : "decrypt",
 					"callKey" : "callKey",
 					"success" : ((result)?(true):(false)),  // Fix? Ensure result !true when invalid pass.
 					"timeSpent" : (cryptStart - Date.now())
@@ -1360,7 +1364,7 @@ function ace(aceID, aceType) {
 			function writeLists() {
 				for (var tableName in db) {
 					var result = dbAPI.aceCall({
-						"command" : "new",
+						"cmd" : "new",
 						"key" : tableName,
 						"value" : {}
 					});
@@ -1373,7 +1377,7 @@ function ace(aceID, aceType) {
 				return;  // Fix!
 				for (var tableName in db) {
 					var result = dbAPI.aceCall({
-						"command" : "new",
+						"cmd" : "new",
 						"key" : tableName,
 						"value" : {}
 					});
@@ -1385,7 +1389,7 @@ function ace(aceID, aceType) {
 			function writeTable(tableName) {
 				if (!db[tableName]) { return; }
 				var result = dbAPI.aceCall({
-					"command" : "set",
+					"cmd" : "set",
 					"key" : tableName,
 					"value" : db[tableName]
 				});
@@ -1395,7 +1399,7 @@ function ace(aceID, aceType) {
 			// Loads a new copy of table tableName from the local database into memory. Ignores request if that table does not exist in db.
 			function loadTable(tableName) {
 				var tableObj = dbAPI.aceCall({
-					"command" : "get",
+					"cmd" : "get",
 					"key" : tableName
 				});
 				return;  // Fix!
@@ -1452,26 +1456,26 @@ function ace(aceID, aceType) {
 				// Used to call the localStorage abstraction for a single AceObj. 
 				this.aceCall = function localDbApi_aceCall(callObj) {
 					if (typeOf(callObj) != 'object') { return; }  // || (!safetyCheck(callObj))) { return; }  // Fix? No checks for safety, etc.  Fix. Error handling.
-					var command = callObj.command,
+					var cmd = callObj.cmd,
 						key = aceIDchop(callObj.aceID),
 						value = callObj.items;
 					
-					if (!command || !key) { 
+					if (!cmd || !key) { 
 						return null;  // Fix? Behavior here?
-					} else if (command == "get") {							// command == "get"
-						if (key == "*") { command = "all"; }  // Fix?
-					} else if (command == "set") {							// command == "set"
+					} else if (cmd == "get") {							// command == "get"
+						if (key == "*") { cmd = "all"; }  // Fix?
+					} else if (cmd == "set") {							// command == "set"
 						// Fix? Special handling?
-					} else if (command == "new") {							// command == "new"
+					} else if (cmd == "new") {							// command == "new"
 						// Fix? Special handling?
-					} else if (command == "del") {							// command == "del" 
-						if (key == "*") { command = "clr"; }  // Fix?
+					} else if (cmd == "del") {							// command == "del" 
+						if (key == "*") { cmd = "clr"; }  // Fix?
 					} else {
 						return null;  // Fix. Error handling
 					}
 					// Fix? Meaningful return values?
 					return thisDb.aceCall({
-						"command" : command,
+						"cmd" : cmd,
 						"key" : key,
 						"value" : value
 					});
@@ -1485,15 +1489,15 @@ function ace(aceID, aceType) {
 				function CrossRiderDb() {
 					this.aceCall = function CrossRiderDb_aceCall(callObj) { 
 						if (typeOf(callObj) != 'object') { return; }  // Fix.  Error handling.
-						var command = callObj.command;
+						var cmd = callObj.cmd;
 						var key = callObj.key;
 						var value = callObj.value;
-						if (command == "get") { return appAPI.db.get(key); }
-						if (command == "set") { return appAPI.db.set(key, value); }
-						if (command == "new") {	return appAPI.db.set(key, value); }
-						if (command == "del") {	return appAPI.db.remove(key); }
-						if (command == "clr") { return appAPI.db.removeAll(); }  // Erases the entire db. Fix. Safety mechanisms?
-						if (command == "all") { return appAPI.db.list(); }
+						if (cmd == "get") { return appAPI.db.get(key); }
+						if (cmd == "set") { return appAPI.db.set(key, value); }
+						if (cmd == "new") {	return appAPI.db.set(key, value); }
+						if (cmd == "del") {	return appAPI.db.remove(key); }
+						if (cmd == "clr") { return appAPI.db.removeAll(); }  // Erases the entire db. Fix. Safety mechanisms?
+						if (cmd == "all") { return appAPI.db.list(); }
 					}
 				}
 				
@@ -1501,25 +1505,25 @@ function ace(aceID, aceType) {
 				function localStorageDb() {
 					this.aceCall = function localStorageDb_aceCall(callObj) { 
 						if (typeOf(callObj) != 'object') { return; }  // Fix.  Error handling.
-						var command = callObj.command,
+						var cmd = callObj.cmd,
 							key = callObj.key,
 							value = callObj.value;
 							
-						if (command == "get") { return localStorage.getItem(key); }
-						if (command == "set") { return localStorage.setItem(key, value); }
-						if (command == "new") {	return localStorage.setItem(key, value); }
-						if (command == "del") {	return localStorage.removeItem(key); }
-						if (command == "clr") { return localStorage.clear(); }  // Erases the entire db. Fix. Safety mechanisms?
-						if (command == "all") {	return getAllItems(); }
+						if (cmd == "get") { return localStorage.getItem(key); }
+						if (cmd == "set") { return localStorage.setItem(key, value); }
+						if (cmd == "new") {	return localStorage.setItem(key, value); }
+						if (cmd == "del") {	return localStorage.removeItem(key); }
+						if (cmd == "clr") { return localStorage.clear(); }  // Erases the entire db. Fix. Safety mechanisms?
+						if (cmd == "all") {	return getAllItems(); }
 						/*  // Fix? Perform JSON operations here so as to unify handling of calls and results format? If better performance from keeping as string, then remove this code.
-						if (command == "get") { 
-							command = localStorage.getItem(key);
-							return JSON.parse(command); 
-						} else if (command == "set") { 
+						if (cmd == "get") { 
+							cmd = localStorage.getItem(key);
+							return JSON.parse(cmd); 
+						} else if (cmd == "set") { 
 							return localStorage.setItem(key, JSON.stringify(value)); 
-						} else if (command == "new") { 
+						} else if (cmd == "new") { 
 							return localStorage.setItem(key, JSON.stringify(value)); 
-						} else if (command == "del") { 
+						} else if (cmd == "del") { 
 							return JSON.parse(localStorage.removeItem(key)); 
 						}*/
 					}
@@ -1548,7 +1552,7 @@ function ace(aceID, aceType) {
 			this.aceCall = function DatabaseObj_aceCall(callObj) {  // Fix! Determine best behavior for handling this callObj structure.
 				if (!_.isObject(callObj)) { return; }  // Fix.  Error handling.
 				var key = callObj.aceID || callObj.key,  // Fix?
-					command = callObj.command,
+					cmd = callObj.cmd,
 					result = null;
 				
 				//if (isTyp(key)) { callObj["forceString"] = true; }  // Fix? Handle this mechanism in best way possible.  // Fix? Removed 
@@ -1570,7 +1574,7 @@ function ace(aceID, aceType) {
 			this.ace = function DatabaseObj_ace(aceID) {
 				if (typeof(aceID) != 'string') { return null; }  // Fix.  Error handling, notification.
 				return _DatabaseObj.aceCall({
-					"command" : "get",
+					"cmd" : "get",
 					"key" : aceID
 				});
 			}
@@ -1891,7 +1895,7 @@ function ace(aceID, aceType) {
 			memObj.aceObj[aceID] = _AceObj;
 			
 			var callObj = {
-				"command" : "new",
+				"cmd" : "new",
 				"alias" : aceID,
 				"aceType" : aceType,
 				"items" : items,
@@ -1907,7 +1911,7 @@ function ace(aceID, aceType) {
 		this.del = function AceObj_del(callObj) {
 			// Fix! Check prefs, flag confirmation if set, pass callback to _ACE to execute outside and clean up memory;
 			_ACE.aceCall({
-				"command" : "del",
+				"cmd" : "del",
 				"aceID" : aceID
 			});
 			log("AceObj.del() called for entity with aceID "+aceID);
@@ -2002,7 +2006,7 @@ function ace(aceID, aceType) {
 		this.save = function AceObj_save() {
 			if (!objItems.modified) { return; }  // Fix! Ensure this is implemented well!
 			ACE.aceCall({
-				"command" : "set",
+				"cmd" : "set",
 				"aceID" : aceID,
 				"items" : JSON.stringify(items),
 			});
@@ -2015,22 +2019,22 @@ function ace(aceID, aceType) {
 			if (_.isString(callObj)) { callObj = {"als":callObj}; }
 			if (!_.isObject(callObj)) { return; }
 			var alsArray = ((_.isArray(items.als))?(items.als):(items.als=[])),
-				command = (callObj.command || callObj.cmd || "new"),
+				cmd = (callObj.cmd || callObj.command || "new"),
 				alias = (callObj.alias || callObj.als);
 				
-			//if (!command && !command) { return ((_.isArray(alsArray))?(alsArray.slice(0)):([])); }  // Fix?
+			//if (!cmd) { return ((_.isArray(alsArray))?(alsArray.slice(0)):([])); }  // Fix?
 			//if (!alias || alias == "auto") { alias = _AceObj.nextAceID(); }
-			if (command == "new") {
+			if (cmd == "new") {
 				alsArray.push(alias);  // Fix. Sorting order?
 				return ACE.als(alias, aceID);
-			} else if (command == "to") {
+			} else if (cmd == "to") {
 				alsArray.push(alias);  // Fix. Sorting order?
 				if (!ACE.als(alias)) { ACE.als(alias, aceID); }
-			} else if (command == "check") {
+			} else if (cmd == "check") {
 				return (_.indexOf(alsArray, alias)) ? (true) : (false);
-			} else if (command == "del") {
+			} else if (cmd == "del") {
 				// Fix. Handle this. Should never actually remove an alias, as it's useful for obscure references. (Unless replacing for new requested use?)
-			} else if (command == "from") {
+			} else if (cmd == "from") {
 				// Fix. Handle options. Move this object to the new position? Remove it? 
 			} else {
 				// Fix. Error handling, notification.
@@ -2076,16 +2080,15 @@ function ace(aceID, aceType) {
 		
 		// Returns an incremented highest subID registered for this entity and replaces it for the new highest value.   If rootAlias is defined, it will return alias[0], or that alias if set for this entity.  Doesn't matter if the new AceID is actually used or not bc they are cheap.
 		this.nextAceID = function AceObj_nextAceID(rootAlias) {
-			var newAceID = null;
-			if (newAceID) {  // Fix. (typeof(rootAlias) == 'string') && (items.als.length)) {  // Fix? Disabled this because of possible conflicts.
+			if (items.cor.typ == "bad") { return; }  // Fix.  Error handling, notification.
+			if (false) {  // Fix. (typeof(rootAlias) == 'string') && (items.als.length)) {  // Fix? Disabled this because of possible conflicts.
 				rootAlias = ((items.als.indexOf(rootAlias))?(rootAlias):(items.als[0]));
 			} else {
-				rootAlias = items.cor.aceID;
+				rootAlias = items.cor.ace;
 			}
 			items.sys.topSubAlias = ACE.nextAceID(items.sys.topSubAlias);
-			newAceID = rootAlias+'_'+items.sys.topSubAlias;
 			objItems.modified = true;
-			return newAceID;
+			return (rootAlias+'_'+items.sys.topSubAlias);
 		}
 		
 		//log(this, "AceObj with aceID "+aceID);
@@ -2157,7 +2160,7 @@ function ace(aceID, aceType) {
 		// Used as a shortcut for making basic ace calls to this object's aceCall function.
 		this.ace = function AceComm_ace(aceID, callBack) {
 			_AceComm.aceCall({
-				"command" : "get",
+				"cmd" : "get",
 				"aceID" : aceID,
 				"callBack" : callBack  // Once the object with aceID is returned and loaded, this method will be executed.
 			});
@@ -2167,7 +2170,7 @@ function ace(aceID, aceType) {
 		// Used as a shortcut for making basic ace calls to this object's aceCall function.
 		this.aceType = function AceComm_aceType(aceType, caller) {
 			_AceComm.aceCall({
-				"command" : "get",
+				"cmd" : "get",
 				"aceType" : aceType,
 				"aceID" : aceType,
 				"forceString" : true,  // Fix. Handle this mechanism in best way possible.

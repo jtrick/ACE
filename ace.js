@@ -22,7 +22,7 @@ ace('testID');
 
 
 // The ace function. Use ace(aceID) to return the object represented by aceID. aceType can be used to restrict the type(s) of entity that are acceptable to return, and can be a single or space-separated string representing the aceID or an alias of the specified aceType(s).
-function ace(aceID, aceType) {
+function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  Only purpose is to return and ACE instance on login or via omniscience check.
 	ace._ACE = ace._ACE || new AceAPI();  // Will establish a persistent refernce to the single instance of the aceAPI object.
 	var ACE = ace._ACE,  // The var used globally within the ace() member objects.
 		caller = ace.caller,  // Fix.  This should be made more useful.
@@ -155,6 +155,27 @@ function ace(aceID, aceType) {
 	}
 	
 	
+	// Used to return an empty or faulty AceObj when appropriate.
+	function badCall(aceID) {
+		var items = {
+			"cor" : {
+				"ace" : aceID,
+				"nam" : "Bad AceObj",
+				"dsc" : "There was an error loading this aceObj.",
+				"typ" : "bad"
+			},
+			"sys" : {
+				"topSubAlias" : null
+			}
+		};
+		if (_.isObject(aceID)) {
+			items.ace = "bad";
+			items.sys.callObj = aceID;
+		}
+		return new AceObj(items);
+	}
+	
+	
 	// Boolean check to determine whether aceID represents a 'typ' entity structure by using simple name prefix check. Returns true or false.
 	function isTyp(aceID) {
 		if ((!(aceID = aceIDchop(aceID))) || (aceID.length < 5)) { return false; }
@@ -162,7 +183,7 @@ function ace(aceID, aceType) {
 	}
 		
 		
-	// Objects available for privilaged use to this object.
+	///////  Objects available for privilaged use to this object.  /////////////////////
 	
 	
 	// The abstraction used to communicate with the central ACE system. The connection is abstracted and can be a local system call, across a network, or any other mechanism.
@@ -238,17 +259,40 @@ function ace(aceID, aceType) {
 		}
 		
 		
-		// The universal shortcut method for returning an aceObj represented by aceID. Actually just calls data.ace(); loadRadius sets the number of peripheral load steps to take in loading lnk and sub-entities.
+		// The universal shortcut method for returning an aceObj represented by aceID. Actually just passes the call to data.ace() or data.aceCall(); loadRadius sets the number of peripheral load steps to take in loading lnk and sub-entities.
 		this.ace = function AceAPI_ace(aceID, loadDepth) {
-			if (typeof(aceID) == "string") { return data.ace(aceID, loadDepth); }
+			if (_.isAceID(aceID)) { 
+				return data.ace(aceID, loadDepth); 
+			} else if (_.isObject(aceID)) {  // If using ACE.ace() as shorthand for ACE.aceCall();  Fix? Allow this?
+				var callObj = aceID;
+				if (!_.isString(callObj.cmd)) {  // Fix. Ensure solid. Allow this? This block is used to handle shorthand calls like { "set":"aceID", "key":"thisKey", "val":"someVal" }
+					if (_.isString(callObj.get)) {
+						return data.aceCall({"cmd":"get","key":callObj.get});
+					} else if (_.isString(callObj.set)) {
+						if (_.isString(callObj.val)) {
+							return data.aceCall({"cmd":"set","key":callObj.set,"val":callObj.val});
+						}
+					} else if (_.isString(callObj["new"])) {
+						if (_.isString(callObj.val)) {
+							return data.aceCall({"cmd":"set","key":callObj.set,"val":callObj.val});
+						}
+					} else if (_.isString(callObj.del)) {
+						return data.aceCall({"cmd":"del","key":callObj.del});
+					}
+					return badCall(callObj);  // Fix? Error handling, notification.
+				}			
+				return data.aceCall(callObj);
+			}
 		}
 		
 		
 		// The universal access method for the ACE API. Accepts an object using the ReSTful ACE communications protocols, as single or batch requests. See http://openace
 		this.aceCall = function AceAPI_aceCall(callObj, caller) {  // Fix.  This function needs re-optimized since converting the call process.
-			var aceID, key, value, commandBlock, callType, aceType, result, typ;
-			var resultsArray = [];
-			callType = typeOf(callObj);
+			var aceID, key, value, commandBlock, aceType, result, typ,
+				callType = typeOf(callObj),
+				resultsArray = [];
+				
+				
 			if (callType == "undefined") { return data.ace("_system_", "sys"); }  // Creates and returns an AceObj with no aceID, typically used to create an access point for system and retain a closure reference of the AceAPI object.
 			if (callType == "string") { return data.ace(callObj); }  // Allow single string arg for possibility to make "get" aceCall using it as an aceID. 
 			if (callType == "array") { return data.aceCall(callObj, "container"); }  // Creates and returns an AceObj with no aceID that serves as a collection of AceObjs to handle batch operations on or route to other processes.
@@ -397,19 +441,26 @@ function ace(aceID, aceType) {
 					// Fix.  Error handling.
 				}
 			}
-			if (value = callObj["dat"]) {  				// If loading from a file, stream, or other data source. Imports the object but does not propogate new or get calls.
+			if (value = callObj["dat"]) {  // If loading from a file, stream, or other data source. Imports the object but does not propogate new or get calls.
+				key = (callObj.src || callObj.source);
+				if (key=="file" || key=="stream") { 
+					// Fix. Handling for this. Security and src comparison checks.
+				} else {
+					// Fix. Handling for this.
+				}
 				if (_.isObject(value)) {
 					_.each(value, function(items,id) {
-						result = data.aceCall({
+						resultsArray.push(data.aceCall({
 							"cmd" : "dat",
+							"src" : key,
 							"aceID" : id,
 							"items" : items
-						});
-						resultsArray.push(result);
+						}));
 					});
 				} else {
-					// Fix.  Error handling.
+					return badCall(value);  // Fix.  Error handling.
 				}
+				return resultsArray;
 			}
 			
 			if ((value = resultsArray.length) > 1) {
@@ -542,19 +593,13 @@ function ace(aceID, aceType) {
 		// Used to grab existing aceObj with aceID or instantiate a new one. If aceID represents a 'typ' structure, a new aceObj of that type will be instantiated and returned. If aceID is an array of aceIDs or aceObjs, a new container aceObj will be instantiated to hold them. loadDepth sets the number of peripheral load steps to take in loading lnk and sub-entities.
 		var _ace = this.ace = function AceData_ace(aceID, loadDepth) {
 			//if (!securityCheck(aceID, caller, "ace")) { return false; }  // Fix! Handle for cases of comm latency. Return AceObj. Error handling and notification.
-			if (typeof(aceID) == "string") {
+			if (_.isString(aceID)) {
 				if (!(aceID = aceIDchop(aceID))) {  // Fix. Make efficient. Use single point for aceID check and cleanup.
 					return badCall();  // If this is an invalid aceID, return a bad object.
 				} else if (memObj.aceObj[aceID]) {  // If this AceObj exists in memory, return it.
 					return memObj.aceObj[aceID];
 				} else if (result = db.ace(aceID)) {  // If we find this aceID in the local db, instantiate it.
-					return datCall({
-						"cmd" : "dat",
-						"aceID" : aceID,
-						"items" : result,
-						"loadDepth" : loadDepth,
-						"source" : "db"
-					});
+					return newAceObj(result, aceID);
 				} else {  // Otherwise, send a 'get' call through to comm which returns a waiting AceObj.
 					return comCall({
 						"cmd" : "get",
@@ -563,8 +608,10 @@ function ace(aceID, aceType) {
 						"caller" : caller
 					});
 				}
-			} else if (typeOf(aceID) == 'array') {  // Fix. Do we want this? Probably not...
-				return badCall(aceID[0]);  //  Fix.  return new AceObj(aceID, 'container');
+			} else if (_.isObject(aceID)) {  // If using ace() as alias for aceCall();
+				return aceCall(aceID);
+			} else if (_.isArray(aceID)) {  // Fix. Do we want this? Probably not...
+				return badCall("Called using array");  //  Fix.  return new AceObj(aceID, 'container');
 			} else {
 				return badCall(aceID);
 			}
@@ -573,14 +620,19 @@ function ace(aceID, aceType) {
 		
 		// Used to call the AceData abstraction for a single AceObj, handles logic and safety for calls. Attempts local action, propogating to the local db, and then sends to aceComm for central server transmission. Ultimately it makes more sense to centralize the security checking, decision-making, and propogation within this function because the object reference is never passed outside of AceAPI or AceObj so we can focus on ensuring integrity of these structures mere dependably than for those objects which we pass back to the user applications.
 		var aceCall = this.aceCall = function AceData_aceCall(callObj) {
-			if (!_.isObject(callObj) || (!safetyCheck(callObj))) { return; }  // Fix.  Error handling.
-			//if (callObj.caller != AceData_aceCall.caller) { callObj.caller = AceData_aceCall.caller; } // Fix. This was from before structuring aceObj as the central logic point.
 			callObj.dataCallTime = Date.now();
-			var cmd = callObj.cmd = (callObj.cmd || callObj.command);  // Fix? 
+			//if (_.isAceID(callObj) { return _ace(callObj); }  // Fix.
+			if (!_.isObject(callObj) || (!safetyCheck(callObj))) { return badCall(callObj); }  // Fix.  Error handling.
+			var cmd = callObj.cmd = (callObj.cmd || callObj.command);  // Fix. Ensure this is only called by AceAPI and remove extra checks.
+			var aceID = callObj.aceID = (callObj.aceID || callObj.ace || callObj.key);  // Fix. Same as above. Ensure uniformity.
+			if (!cmd || !aceID) { return badCall(callObj); }  // Fix? Other behavior here?
 			
-			if (!cmd) { 
-				// Fix. Behavior here?
-			} else if (cmd == "get") {							// command == "get"
+			var scopeArray = resolveScope(aceID);
+			if (scopeArray) {
+				// Fix. Return a new ACE.aceCall() to the updated scopeArray.
+			}
+			
+			if (cmd == "get") {									// command == "get"
 				return getCall(callObj);
 			} else if (cmd == "set") {							// command == "set"
 				return setCall(callObj);
@@ -591,18 +643,39 @@ function ace(aceID, aceType) {
 			} else if (cmd == "dat") {							// command == "dat" 
 				return datCall(callObj);
 			} else {
-				// Fix. Handling for incorrect commands.
+				return badCall(callObj);  // Fix? Handling for incorrect commands.
 			}
-			return result;
-			
 		}//AceData_aceCall()
+		
+		
+		// Translates a scope string such as "aceID:parents" or other relational symbols into the resulting aceIDs. Returns an array if successful, even if empty. Returns null if the string does not translate into a scope.
+		function resolveScope(scopeStr) {
+			if (!_.isString(scopeStr)) { return; }
+			var strArray;
+			if (scopeStr == "*") {
+				// Fix.  Determine most appropriate meaning for this.
+			} else if (strArray=scopeStr.split(":")) {
+				// Fix. Complete this.
+			}
+			return null;  // Fix!
+		}
 		
 		
 		// The central handler for AceData calls of 'cmd'=='get'.
 		function getCall(callObj) {
 			var aceID = (callObj.aceID || callObj.ace);
-			if (!_.isAceID(aceID)) { return badCall(callObj); }
-			return _ace(aceID);
+			if (aceID == "*") {
+				var objArray = [],
+					dbArray = db.aceCall(callObj);
+				_.each(dbArray, function(val, key) {
+					objArray.push(newAceObj(val, key));
+				})
+				return objArray;  // Fix. Check for accuracy.
+			} else if (_.isAceID(aceID)) {
+				return _ace(aceID);
+			} else {
+				return badCall(callObj); 
+			}
 		}
 		
 		
@@ -669,25 +742,6 @@ function ace(aceID, aceType) {
 		}
 		
 		
-		// Used to instantiate an AceObj into active memory.  Does not propogate the instance, just centralizes the process to a single point.
-		function newAceObj(items, aceID) {
-			if (!_.isObject(items)) { items = entityCore(); }
-			if (!_.isAceID(aceID)) {
-				aceID = (_.isObject(items.cor) && _.isAceID(items.cor.ace)) ? (items.cor.ace) : (_AceData.nextAceID()); 
-			}
-			if (memObj.items[aceID]) {
-				return badCall(aceID);  // Fix! Handle collisions, notification, etc.
-				objCollision({
-					// Fix.
-				});
-			} else {
-				items.cor.ace = aceID;  // Fix? Ensure items.cor is always the correct object.
-			}
-			memObj.items[aceID] = items;
-			return memObj.aceObj[aceID] = new AceObj(memObj.items[aceID]);
-		}
-		
-		
 		// The central handler for AceObj calls of 'cmd'=='del'.
 		function delCall(callObj) {
 			var aceID = callObj.aceID;
@@ -697,21 +751,25 @@ function ace(aceID, aceType) {
 				delete memObj.items[aceID];
 				dbCall(callObj);
 				comCall(callObj);
-			} else if (aceID == "*") {  // Fix? Allow this to be done here?
-				// Fix! Verification alert, solidify handling, etc.
+			} else if (aceID == "*") { 
+				// Fix. Determine best behavior. Currently removes all items from local db and updates their internal status as 'deleted'. Probably want to check all references for this user in a particular scope and propose deletion for all shared lnks, Outright removing references where able.
+				var dbArray = dbCall({"cmd":"get", "aceID":"*"});  // Fix. Should get all references within user's specified scope.
+				_.each(dbArray, function(val, key) {
+					
+				})
 				memObj.aceObj = {};  // Fix. Delete instantiated objects and take appropriate action.
 				memObj.items = {};  // Fix. Trace references held in local objects, remove.
 				dbCall(callObj);  // Fix. Security handling, etc.
 				// Fix. If we want to allow this, identify ideal behavior. Pass to comm? Delete objs in memory?
 			} else {
-				return null;  // Fix. Error handling, alert, appropriate return value.
+				return badCall(callObj);  // Fix. Error handling, alert, appropriate return value.
 			}
 		}
 		
 		
-		// Used when loading existing data into local system as from db and comm return calls or files.
+		// Used when loading existing data into local system as from files, streams, and comm return calls.
 		function datCall(callObj, queIDs) {  // Fix. Error checking.
-			// if (!_.isObject(callObj)) { return; }  // Fix? Shouldn't be necessary.
+			if (!_.isObject(callObj)) { return; }  // Fix? Shouldn't be necessary.
 			var aceID = callObj.aceID,
 				items = callObj.items,
 				typ = (items.cor && items.cor.typ) ? (items.cor.typ) : ("typ-ent"),
@@ -727,6 +785,8 @@ function ace(aceID, aceType) {
 			} else {
 				obj = newAceObj(aceTyp(typ), aceID);
 			}
+			
+			dbCall(callObj);
 			
 			// Fix. The following should be shifted into mergeObjs and handled accordingly. Different cases where loading via inheritence vs legacy instance?
 			_.each(items, function(itms,itm) {
@@ -774,33 +834,16 @@ function ace(aceID, aceType) {
 		}
 		
 		
-		// Used to return an empty or faulty AceObj when appropriate.
-		function badCall(aceID) {
-			var items = {
-				"cor" : {
-					"ace" : aceID,
-					"nam" : "Bad AceObj",
-					"dsc" : "There was an error loading this aceObj.",
-					"typ" : "bad"
-				},
-				"sys" : {
-					"topSubAlias" : null
-				}
-			};
-			return new AceObj(items);
-		}
-		
-		
 		// Used to handle calls made to the local AceDatabase object.
 		function dbCall(callObj) {  // Fix! Ensure caller security of this operation
 			var result = null;
 			
 			if (typeOf(callObj) != "object") { return; }  // Fix?
 			if (!callObj.aceID) { 
-				// Fix. Error handling. Do anything here?
+				return badCall(callObj);  // Fix. Error handling. Do anything else here?
 			}
-			if (!memObj.aceObj[callObj.aceID]) {
-				// Fix. Error handling. Create new?
+			if (memObj.items[callObj.aceID]) {
+				// Fix. Collision handling.
 			}
 			if (!callObj.cmd || callObj.cmd == "db") { callObj.cmd = "get"; }  // Fix? May want to return rather than defaulting to 'get' call?
 			result = db.aceCall(callObj);
@@ -813,7 +856,6 @@ function ace(aceID, aceType) {
 		
 		// Used to handle calls made to the comm object.
 		function comCall(callObj) {  // Fix! Ensure caller security of this operation
-			if (typeOf(callObj) != "object") { return; }  // Fix?
 			var aceID = callObj.aceID;
 			if (!aceID) { 
 				// Fix.  What to do here?
@@ -834,6 +876,25 @@ function ace(aceID, aceType) {
 			});
 			memObj.tempIDs[aceID] = null;  // Fix? Address duplicates only on collision rather than here?
 			return memObj.aceObj[aceID];
+		}
+		
+		
+		// Used to instantiate an AceObj into active memory.  Does not propogate the instance, just centralizes the process to a single point.
+		function newAceObj(items, aceID) {
+			if (!_.isObject(items)) { items = entityCore(); }
+			if (!_.isAceID(aceID)) {
+				aceID = (_.isObject(items.cor) && _.isAceID(items.cor.ace)) ? (items.cor.ace) : (_AceData.nextAceID()); 
+			}
+			if (memObj.items[aceID]) {
+				return memObj.items[aceID];  // Fix! Handle collisions, notification, etc.
+				objCollision({
+					// Fix.
+				});
+			} else {
+				items.cor.ace = aceID;  // Fix? Ensure items.cor is always the correct object.
+			}
+			memObj.items[aceID] = items;
+			return memObj.aceObj[aceID] = new AceObj(memObj.items[aceID]);
 		}
 		
 		
@@ -1453,31 +1514,41 @@ function ace(aceID, aceType) {
 				//log(thisDb, "thisDb");
 				
 				
-				// Used to call the localStorage abstraction for a single AceObj. 
+				// Used to execute aceCall() on the local database abstraction for a single AceObj. 
 				this.aceCall = function localDbApi_aceCall(callObj) {
 					if (typeOf(callObj) != 'object') { return; }  // || (!safetyCheck(callObj))) { return; }  // Fix? No checks for safety, etc.  Fix. Error handling.
 					var cmd = callObj.cmd,
 						key = aceIDchop(callObj.aceID),
-						value = callObj.items;
+						val = callObj.items;
 					
 					if (!cmd || !key) { 
-						return null;  // Fix? Behavior here?
-					} else if (cmd == "get") {							// command == "get"
-						if (key == "*") { cmd = "all"; }  // Fix?
-					} else if (cmd == "set") {							// command == "set"
-						// Fix? Special handling?
-					} else if (cmd == "new") {							// command == "new"
-						// Fix? Special handling?
-					} else if (cmd == "del") {							// command == "del" 
-						if (key == "*") { cmd = "clr"; }  // Fix?
-					} else {
-						return null;  // Fix. Error handling
+						return null;  // Fix? Error handling? Notification here?
+					} else if (key == "*") {
+						if (cmd == "get") {
+							cmd = "all";
+						} else if (cmd == "del") {
+							cmd = "clr";
+						} else {
+							// Fix. Handling of this?
+						}
 					}
+					// Fix. Remove following commented code once sure we won't need this.
+					// if (cmd == "get") {									// command == "get"
+						// if (key == "*") { cmd = "all"; }  // Fix?
+					// } else if (cmd == "set") {							// command == "set"
+						// // Fix? Special handling?
+					// } else if (cmd == "new") {							// command == "new"
+						// // Fix? Special handling?
+					// } else if (cmd == "del") {							// command == "del" 
+						// if (key == "*") { cmd = "clr"; }  // Fix?
+					// } else {
+						// return null;  // Fix. Error handling
+					// }
 					// Fix? Meaningful return values?
 					return thisDb.aceCall({
 						"cmd" : cmd,
 						"key" : key,
-						"value" : value
+						"val" : val
 					});
 				}//localDbApi_aceCall()
 		
@@ -1507,15 +1578,15 @@ function ace(aceID, aceType) {
 						if (typeOf(callObj) != 'object') { return; }  // Fix.  Error handling.
 						var cmd = callObj.cmd,
 							key = callObj.key,
-							value = callObj.value;
+							val = (callObj.val || callObj.value);
 							
 						if (cmd == "get") { return localStorage.getItem(key); }
-						if (cmd == "set") { return localStorage.setItem(key, value); }
-						if (cmd == "new") {	return localStorage.setItem(key, value); }
+						if (cmd == "set") { return localStorage.setItem(key, val); }
+						if (cmd == "new") {	return localStorage.setItem(key, val); }
 						if (cmd == "del") {	return localStorage.removeItem(key); }
 						if (cmd == "clr") { return localStorage.clear(); }  // Erases the entire db. Fix. Safety mechanisms?
 						if (cmd == "all") {	return getAllItems(); }
-						/*  // Fix? Perform JSON operations here so as to unify handling of calls and results format? If better performance from keeping as string, then remove this code.
+						/*  // Fix? Perform JSON operations here so as to unify handling of calls and results format? If experience is unified across browsers, then remove this code.
 						if (cmd == "get") { 
 							cmd = localStorage.getItem(key);
 							return JSON.parse(cmd); 
@@ -1529,9 +1600,9 @@ function ace(aceID, aceType) {
 					}
 					
 					function getAllItems() {
-						var tblArray = [];
-						for (var tblName in localStorage) { tblArray.push(tblName); }  // Fix? Is this valid?
-						return tblArray; 
+						var dbArray = [], key;
+						for (key in localStorage) { dbArray.push(key); }  // Fix? Is this valid?
+						return dbArray; 
 					}
 				}
 				
@@ -1551,28 +1622,25 @@ function ace(aceID, aceType) {
 			// Executes command and returns results from single calls to the local database.
 			this.aceCall = function DatabaseObj_aceCall(callObj) {  // Fix! Determine best behavior for handling this callObj structure.
 				if (!_.isObject(callObj)) { return; }  // Fix.  Error handling.
-				var key = callObj.aceID || callObj.key,  // Fix?
-					cmd = callObj.cmd,
-					result = null;
-				
-				//if (isTyp(key)) { callObj["forceString"] = true; }  // Fix? Handle this mechanism in best way possible.  // Fix? Removed 
-				callObj["forceString"] = false;  // Fix. Determine conclusively whether any advantage exists for keeping typ as JSON form.
-				callObj.key = key;  // Fix? May not be necessary if strict in callObj.
-				result = dbAPI.aceCall(callObj);
-				if (typeof(result) == 'string') {  // Fix? Handle return type checking and conversion mechanism in best way possible. May want to internalize this to dbAPI.
-					if (!callObj.forceString) { result = JSON.parse(result); }
-				} else if (typeOf(result) == 'object') {
-					//if (callObj.forceString) { result = JSON.stringify(result); }  // Fix. Determine conclusively whether any advantage exists for keeping typ as JSON form.
-				} else {
-					result = null;  // Fix. Error handling, notification. Other results?
-				}
-				return result;
+				var result = null;
+				callObj.cmd = (callObj.cmd || callObj.command);  // Fix?
+				callObj.key = (callObj.aceID || callObj.key);  // Fix?
+				callObj.val = (callObj.items || callObj.val || callObj.value);  // Fix?
+				return dbAPI.aceCall(callObj);  // Fix.  Determine if it is ever necessary to perform any after-call work on result.
+				// if (typeof(result) == 'string') {  // Fix? Handle return type checking and conversion mechanism in best way possible. May want to internalize this to dbAPI.
+					// if (!callObj.forceString) { result = JSON.parse(result); }
+				// } else if (typeOf(result) == 'object') {
+					// //if (callObj.forceString) { result = JSON.stringify(result); }  // Fix. Determine conclusively whether any advantage exists for keeping typ as JSON form.
+				// } else {
+					// result = null;  // Fix. Error handling, notification. Other results?
+				// }
+				// return result;
 			}
 			
 			
 			// Calls basic single aceID get call to db.
 			this.ace = function DatabaseObj_ace(aceID) {
-				if (typeof(aceID) != 'string') { return null; }  // Fix.  Error handling, notification.
+				if (!_.isAceID(aceID)) { return null; }  // Fix.  Error handling, notification.
 				return _DatabaseObj.aceCall({
 					"cmd" : "get",
 					"key" : aceID

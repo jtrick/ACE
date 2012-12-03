@@ -2,6 +2,7 @@
 
 
 var loadCallObj = {  // Fix.  Temporary hack.
+	"src" : "file",
 	"dat" : {
 		"str" : {
 			"als" : ["string"],
@@ -885,3 +886,7 @@ ACE.aceCall({  // Fix. Clearing memory on each load.
 });
 ACE.aceCall(loadCallObj);  // Fix. Temporary hack.
 
+ACE.aceCall({  // Fix. Just for checking status.
+	"cmd" : "get",
+	"aceID" : "*"
+});

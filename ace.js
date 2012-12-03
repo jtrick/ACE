@@ -624,12 +624,17 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 			//if (_.isAceID(callObj) { return _ace(callObj); }  // Fix.
 			if (!_.isObject(callObj) || (!safetyCheck(callObj))) { return badCall(callObj); }  // Fix.  Error handling.
 			var cmd = callObj.cmd = (callObj.cmd || callObj.command);  // Fix. Ensure this is only called by AceAPI and remove extra checks.
-			var aceID = callObj.aceID = (callObj.aceID || callObj.ace || callObj.key);  // Fix. Same as above. Ensure uniformity.
+			var aceID = callObj.aceID = (callObj.aceID || callObj.ace || callObj.key || callObj.scope);  // Fix. Same as above. Ensure uniformity.
 			if (!cmd || !aceID) { return badCall(callObj); }  // Fix? Other behavior here?
 			
 			var scopeArray = resolveScope(aceID);
 			if (scopeArray) {
-				// Fix. Return a new ACE.aceCall() to the updated scopeArray.
+				var objArray = [];
+				_.each(scopeArray, function(val, key) {
+					callObj.aceID = key;
+					objArray.push(AceData_aceCall(callObj));
+				})
+				return objArray;
 			}
 			
 			if (cmd == "get") {									// command == "get"
@@ -651,27 +656,21 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 		// Translates a scope string such as "aceID:parents" or other relational symbols into the resulting aceIDs. Returns an array if successful, even if empty. Returns null if the string does not translate into a scope.
 		function resolveScope(scopeStr) {
 			if (!_.isString(scopeStr)) { return; }
-			var strArray;
+			var scopeArray = null;
 			if (scopeStr == "*") {
-				// Fix.  Determine most appropriate meaning for this.
-			} else if (strArray=scopeStr.split(":")) {
+				scopeArray = dbCall({"cmd":"get", "aceID":"*"});  // Fix.  Determine most appropriate meaning for this.
+			} else if (scopeStr.indexOf(":")) {
+				scopeArray = scopeStr.split(":");
 				// Fix. Complete this.
 			}
-			return null;  // Fix!
+			return scopeArray;
 		}
 		
 		
 		// The central handler for AceData calls of 'cmd'=='get'.
 		function getCall(callObj) {
 			var aceID = (callObj.aceID || callObj.ace);
-			if (aceID == "*") {
-				var objArray = [],
-					dbArray = db.aceCall(callObj);
-				_.each(dbArray, function(val, key) {
-					objArray.push(newAceObj(val, key));
-				})
-				return objArray;  // Fix. Check for accuracy.
-			} else if (_.isAceID(aceID)) {
+			if (_.isAceID(aceID)) {
 				return _ace(aceID);
 			} else {
 				return badCall(callObj); 
@@ -742,25 +741,15 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 		}
 		
 		
-		// The central handler for AceObj calls of 'cmd'=='del'.
+		// The central handler for AceObj calls of 'cmd'=='del'.  // Fix. Determine best behavior. Currently removes items from local db and updates their internal status as 'deleted'. Probably want to check all references for this user in a particular scope and propose deletion for all shared lnks, Outright removing references where able.
 		function delCall(callObj) {
 			var aceID = callObj.aceID;
 			if (_.isAceID(aceID)) {
-				// Fix. Complete this. Trace links to remove local instances, update UI.
-				delete memObj.aceObj[aceID];
-				delete memObj.items[aceID];
-				dbCall(callObj);
+				// Fix. Complete this. Trace links to remove local instances, update UI. Identify most appropriate scope, update links in accordance with that.
+				delete memObj.aceObj[aceID];  // Fix. Don't actually want to do this.
+				delete memObj.items[aceID];  // Fix? Should probably keep in memory and simply update status.
+				dbCall(callObj);  // Fix? Keep in db as well so as to avoid redundant loading? Handle otherwise?
 				comCall(callObj);
-			} else if (aceID == "*") { 
-				// Fix. Determine best behavior. Currently removes all items from local db and updates their internal status as 'deleted'. Probably want to check all references for this user in a particular scope and propose deletion for all shared lnks, Outright removing references where able.
-				var dbArray = dbCall({"cmd":"get", "aceID":"*"});  // Fix. Should get all references within user's specified scope.
-				_.each(dbArray, function(val, key) {
-					
-				})
-				memObj.aceObj = {};  // Fix. Delete instantiated objects and take appropriate action.
-				memObj.items = {};  // Fix. Trace references held in local objects, remove.
-				dbCall(callObj);  // Fix. Security handling, etc.
-				// Fix. If we want to allow this, identify ideal behavior. Pass to comm? Delete objs in memory?
 			} else {
 				return badCall(callObj);  // Fix. Error handling, alert, appropriate return value.
 			}

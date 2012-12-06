@@ -659,7 +659,7 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 			var scopeArray = null;
 			if (scopeStr == "*") {
 				scopeArray = dbCall({"cmd":"get", "aceID":"*"});  // Fix.  Determine most appropriate meaning for this.
-			} else if (scopeStr.indexOf(":")) {
+			} else if (scopeStr.indexOf(":")>0) {
 				scopeArray = scopeStr.split(":");
 				// Fix. Complete this.
 			}
@@ -734,7 +734,7 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 			
 			newAceObj(_.extend(items, (callObj.items || {})), aceID);  // Fix? Ensure this works correctly in all cases.
 			
-			callObj.items = packItems(aceID);
+			callObj.items = items;  // packItems(aceID);
 			dbCall(callObj);
 			comCall(callObj);
 			return memObj.aceObj[aceID];
@@ -765,19 +765,17 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 				lnkTypes = ["als","cor","itm","typ","has","lnk"],  // Fix! Obtain programmatically.
 				obj = null;
 				
-			if (!_.isObject(items)) { return false; }  // Fix. Error handling, notification.
+			if (!_.isObject(items)) { return badCall(callObj); }  // Fix. Error handling, notification.
 			if (aceID.length == 3) { aceID = callObj.aceID = "typ-"+aceID; }  // Fix! Temporary hack to facilitate data shorthand quickly.
 			if (memObj.items[aceID]) {
 				return memObj.aceObj[aceID];  // Fix! Handle case where object already exists in memory. Alert, merge options, fork, etc.
-				obj = objCollision(callObj);
-				aceID = obj.cor.ace;
-			} else {
-				obj = newAceObj(aceTyp(typ), aceID);
-			}
+				aceID = objCollision(callObj);
+			} // else {
+				// obj = newAceObj(aceTyp(typ), aceID);
+			// }
+			_.extend(items, aceTyp(typ), callObj.items);
 			
-			dbCall(callObj);
-			
-			// Fix. The following should be shifted into mergeObjs and handled accordingly. Different cases where loading via inheritence vs legacy instance?
+			// Resolves direct references to primitives (and objects?) by creating new AceObj and a corresponding lnk for them. Different cases where loading via inheritence vs legacy instance?
 			_.each(items, function(itms,itm) {
 				if (_.contains(lnkTypes,itm)) {  // If this is a lnk-typ category
 					if (itm == "als") {
@@ -788,8 +786,10 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 						});
 					} else {
 						_.each(itms, function(lnk, cat) {
-							if (_.isAceID(lnk)) {
+							if (_.isAceLnk(lnk)) {
 								_ace(lnk);  // Fix? Does this ever loop perpetually?
+							} else if (_.isAceID(lnk)) {
+								// Fix? Do anything here?
 							} else if (_.isString(lnk)) {
 								lnk = newCall({
 									"typ" : "str",
@@ -804,8 +804,10 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 										"itm" : { "val" : lnk }
 									}
 								}).aceID();
+							} else if (_.isObject(lnk)) {
+								// Fix. Handle this?
 							} else {
-								// Fix. Handle this.
+								// Fix.
 							}
 							lnk = lnkTo({
 								"aceID" : aceID,
@@ -818,6 +820,11 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 				} else {
 					obj.itm = itms;  // Fix! Error, security checking, Merging, etc.
 				}
+			});
+			dbCall({
+				"cmd" : "set",
+				"aceID" : aceID,
+				"val" : obj
 			});
 			return obj;
 		}
@@ -1047,27 +1054,6 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 		}
 		
 		
-		// Returns empty object template structure taken from the AceData instance abstraction. Attempts local action, propogating to the local db, and then sends to aceComm for central server transmission.  Will callBack to the instantiated object if latency exists.
-		var aceTyp = this.aceTyp = function AceData_aceTyp(aceID) {
-			if (!aceID || !_.isAceID(aceID)) { aceID = "typ-ent"; }  // Fix?
-			var result = memObj.typ[aceID];
-			if (_.isObject(result)) {
-				return _.extend({}, result);
-			} else if (_.isObject(memObj.aceObj[aceID]) && memObj.aceObj[aceID].ready()) {
-				return _.extend({}, memObj.typ[aceID] = objStruct(memObj.items[altID]));
-			} else {
-				result = _.extend({}, memObj.typ[aceID] = entityCore());  // Fix. Specific handling for waiting on response? Handle via collision?
-				comm.ace(aceID, function(){  // Fix. Handle latency via callBack.
-					mergeObjs({
-						"aceID" : aceID,  // Fix. Complete this, work out best mechanisms.
-						"memItems" : result
-					});
-				});
-				return result;
-			}
-		}//AceData_aceTyp()
-		
-		
 		// Special case for creating new aceType 'typ' classes.
 		this.newTyp = function AceData_newTyp(aceID) {
 			// Fix. This is probably not necessary any more.  We can just use any existing entity and debate structure etc. directly on it?
@@ -1105,7 +1091,7 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 				itmCat = (lnkCat(callObj) || "lnk"),
 				lnkID = (callObj.altID || _AceData.nextAceID()),
 				thisObj = {};
-		}
+		}//AceData~newLnk()
 		
 		
 		// Checks for the existence of a lnk referenced by typLnk and returns the itm-cat designation for it. Returns null if no lnk of type typLnk exists in any of the item categories.
@@ -1130,6 +1116,27 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 		function newCat(callObj) {
 			
 		}
+		
+		
+		// Returns empty object template structure taken from the AceData instance abstraction. Attempts local action, propogating to the local db, and then sends to aceComm for central server transmission.  Will callBack to the instantiated object if latency exists.
+		var aceTyp = this.aceTyp = function AceData_aceTyp(aceID) {
+			if (!aceID || !_.isAceID(aceID)) { aceID = "typ-ent"; }  // Fix?
+			var result = memObj.typ[aceID];
+			if (_.isObject(result)) {
+				return _.extend({}, result);
+			} else if (_.isObject(memObj.aceObj[aceID]) && memObj.aceObj[aceID].ready()) {
+				return _.extend({}, memObj.typ[aceID] = objStruct(memObj.items[altID]));
+			} else {
+				result = _.extend({}, memObj.typ[aceID] = entityCore());  // Fix. Specific handling for waiting on response? Handle via collision?
+				comm.ace(aceID, function(){  // Fix. Handle latency via callBack.
+					mergeObjs({
+						"aceID" : aceID,  // Fix. Complete this, work out best mechanisms.
+						"memItems" : result
+					});
+				});
+				return result;
+			}
+		}//AceData_aceTyp()
 		
 		
 		// Parses through an object's structure and makes a copy of the keys but with null values.  Used by aceTyp.
@@ -1507,7 +1514,7 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 				this.aceCall = function localDbApi_aceCall(callObj) {
 					if (typeOf(callObj) != 'object') { return; }  // || (!safetyCheck(callObj))) { return; }  // Fix? No checks for safety, etc.  Fix. Error handling.
 					var cmd = callObj.cmd,
-						key = aceIDchop(callObj.aceID),
+						key = aceIDchop(callObj.aceID || callObj.ace),
 						val = callObj.items;
 					
 					if (!cmd || !key) { 
@@ -1520,6 +1527,8 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 						} else {
 							// Fix. Handling of this?
 						}
+					} else if (cmd == "dat") {
+						cmd = "set";  // Fix? This should be fine, although we could add the general dat command to the db interface if need be.
 					}
 					// Fix. Remove following commented code once sure we won't need this.
 					// if (cmd == "get") {									// command == "get"
@@ -1568,7 +1577,9 @@ function ace(aceID, aceType) {  // Fix!  This is all essentially junked now.  On
 						var cmd = callObj.cmd,
 							key = callObj.key,
 							val = (callObj.val || callObj.value);
-							
+						
+						if (_.isObject(val)) { val = JSON.stringify(val); }
+						
 						if (cmd == "get") { return localStorage.getItem(key); }
 						if (cmd == "set") { return localStorage.setItem(key, val); }
 						if (cmd == "new") {	return localStorage.setItem(key, val); }
@@ -2339,17 +2350,20 @@ $.getScript("http://openace.org/js/jQueryUI.js", function() {
 
 // WEAK checks to verify whether a variable represents an AceObj, AceID, AceUI, etc. Returns true if thisObj is the checked type, false otherwise.
 _.mixin({  // Fix? To keep from polluting global namespace, added to _ but may be better options? Remove this and move withing ace if necessary.
-	"isAceID" : function(thisObj) {  // Fix! These are all too weak. Check if exists via ace()?
+	"isAceID" : function(thisObj, typ) {  // Fix! These are all too weak. Check if exists via ace()?
 		if (!_.isString(thisObj) || thisObj.length > 100 || thisObj.length < 4) { return false; }  // Fix. Ensure maxVal is sufficiently large. 
 		var ch = thisObj.charAt(3);
 		if (ch != "_" && ch != "-") { return false; }  // Fix? 
-		//if (thisObj.indexOf("ace_")!=0 && !thisObj.indexOf("_", 1)) { return false; }
+		if (_.isString(typ) && (ch=thisObj.indexOf(typ))!=0 && ch!=4) { return false; }
 		return true;
 	},
 	"isAceObj" : function(thisObj) {  // Fix! Pretty flimsy.
 		if (!_.isObject(thisObj)) { return false; }
 		if (!_.has(thisObj,ace) || !_.has(thisObj,aceCall) || !_.has(thisObj,aceID)) { return false; }
 		return true;
+	},
+	"isAceLnk" : function(thisObj) {  // Fix! Pretty flimsy.
+		return _.isAceID(thisObj, 'lnk');
 	},
 	"isAceUI" : function(thisObj) {  // Fix! Pretty flimsy.
 		if (!_.isObject(thisObj)) { return false; }
@@ -2358,7 +2372,12 @@ _.mixin({  // Fix? To keep from polluting global namespace, added to _ but may b
 	},
 	"isAce" : function(thisObj) {  // Fix? All functionality here?
 		if (!_.isObject(thisObj)) { return false; }
-		if (!_.isAceID(thisObj) && !_.isAceObj(thisObj) && !_.isAceUI(thisObj)) { return false; }
+		if (_.isAceID(thisObj) || _.isAceObj(thisObj) || _.isAceLnk(thisObj) || _.isAceUI(thisObj)) { return true; }
+		return false;
+	},
+	"isJson" : function(thisObj) {
+		if (!_.isString(thisObj) || thisObj.indexOf("{")!=0 || thisObj.lastIndexOf("}")!=thisObj.length-1) { return false; }
+		// Fix! More in-depth checking.
 		return true;
 	}
 });

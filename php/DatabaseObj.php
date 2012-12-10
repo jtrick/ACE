@@ -1332,7 +1332,7 @@ class DatabaseObj {
 	
 	// Creates a new database, returning the password if successful or null if not. Defaults to generating random password , and using $DbName for $UserName if none supplied.
 	function CreateDatabase($DbName, $Pass=0, $UserName=0) {
-		
+		// Fix.  Due to virtual shared hosting restrictions in my primary environment I just left this for the moment. Databases and users can only be created via the cPanel on BlueHost, but in other circumstances this should actually function...  
 	}
 	
 	

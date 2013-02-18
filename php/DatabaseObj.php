@@ -8,21 +8,29 @@ include_once('array_tools.php');
 
 
 class DatabaseObj { 
-	function DatabaseObj($DbName=0, $DbHost=0, $DbUser=0, $DbPass=0, $Echo=0) {
+	function DatabaseObj($DbName=0, $DbHost=0, $DbUser=0, $DbPass=0, $DbType=0, $Echo=0) {  // Fix. Leaving additional args for back-compatability, but should really convert all dependent apps to use an array for instantiating new DatabaseObj. More flexible and extensible.
 		//$Echo = "Set from DatabaseObj()";
 		//echo "<p>\$Echo: {$Echo}</p>";
+		if (is_array($DbName)) {  // Fix. Add setting of $this->DbName, etc. and use throughout initialization process.
+			if (isset($DbName['DbHost'])) { $DbHost = $DbName['DbHost']; }  
+			if (isset($DbName['DbUser'])) { $DbUser = $DbName['DbUser']; }
+			if (isset($DbName['DbPass'])) { $DbPass = $DbName['DbPass']; }
+			if (isset($DbName['DbType'])) { $DbType = $DbName['DbType']; }
+			if (isset($DbName['DbName'])) { $DbName = $DbName['DbName']; }
+		}
 		if (!$this->CheckUserAccess()) { return; }
 		if ($Echo) { echo "<p>DatabaseObj->DatabaseObj() \$DbName:|{$DbName}|, \$DbHost:|{$DbHost}|, \$DbUser:|{$DbUser}|, \$DbPass:|{$DbPass}|</p>\n"; }
 		
-		$Connected = $this->DbConnect($DbName, $DbHost, $DbUser, $DbPass, $Echo);
+		$Connected = $this->DbConnect($DbName, $DbHost, $DbUser, $DbPass, $Echo);  // Fix. Use $this->DbItems-set vars and drop explicit arg passing.
 		if (!$Connected) { return; }  // Fix. Should specify reason for error.	
 		$this->IsLoaded = (($this->LoadObj()) ? (true) : (false)); // Fix? Make more useful?
 		//echo "<p>DatabaseObj->DatabaseObj() \$this: |".HtmlArray($this)."|</p>";
 	}
-
-	var $ThisID;  // The ID for this Database, if applicable.
+	
+	var $ThisID;  // The ID for this Database, if applicable. // Fix. Should use an aceID for this.
 	var $IsLoaded;  // Bool, indicates whether this Database loaded successfully or not.
 	var $SrvRsc;  // The resource link used to access this database on the server.
+	var $DbType;  // The type of db represented by this object. Can be 'mysql', 'postgres', etc.
 	var $DbName;  // The name of the database to load objects from.
 	var $DbHost;  // The host location of this database.
 	var $Name;  // The name used to summon this DatabaseObj from GetDatabaseObj() and by file.
@@ -93,6 +101,46 @@ class DatabaseObj {
 	}
 
 	
+	// Core db_bridge Functions:  /////////////////
+	// Fix.  We will probably want to transition these completely over to an abstract object model.  Leaving this in place for the moment to allow instantiation of base DatabaseObject and for back-compatibility. Ultimately we'll want to branch this or create a new project to allow for the dramatic modifications that are really called for.
+	
+	
+	// Provides abstraction for universal db conection across various implementations.
+	protected function db_connect() {
+		$DbHost = this->DbHost;
+		$DbName = this->DbName;
+		$DbUser = this->DbUser;
+		$DbPass = this->DbPass;
+		$DbType = this->DbType;
+		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to class function and extend from base object.
+			$this->DbServerRsc = pg_connect("host={$DbHost} dbname={$DbName} user={$DbUser} password={$DbPass}");
+		} else if ($DbType == 'mysql') {
+			$this->DbServerRsc = mysql_connect($DbHost, $DbUser, $DbPass);
+		}
+		if ($this->CheckDbUser()) {  // If db exists under this user
+			if ($DbType == 'mysql') {
+				mysql_select_db($DbName, $DbServerRsc);
+				if ($Echo) { echo "<p>DatabaseObj->DbConnect() Connected to database |{$DbHost}| on host \$DbHost |{$DbHost}| as user |{$DbUser}|</p>"; }
+			} else {
+				$this->DbServerRsc = null;
+				echo "<p>DatabaseObj->DbConnect() \$DbName |{$DbName}| is not available to \$DbUser |{$DbUser}|.</p>";
+			}
+		}
+		return $this->DbServerRsc;
+	}
+	
+	
+	// Provides abstraction for universal db query across various implementations.
+	protected function db_query($Query, $SrvRsc=0) {
+		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$SrvRsc = $this->DbServerRsc = pg_query($SrvRsc, $Query);
+		} else if ($DbType == 'mysql') {
+			$SrvRsc = $this->DbServerRsc = mysql_query($Query, $SrvRsc);
+		}
+		return $SrvRsc;
+	}
+	
 	
 	// Login and Access Functions:  /////////////////
 
@@ -106,7 +154,7 @@ class DatabaseObj {
 	
 	// Checks to see whether the current user has access to this table by returning 1, or not by returning 0. Tables listed in Table_pri are restricted, and UserIDs referenced to them in User_Table_ref are allowed access.
 	function CheckUserAccess($TableName=0) {
-		return 1;  // Fix!!  Disabling user security check for testing purposes; makes things simpler for immediate adoption in projects. Modify db structure on a per-usage basis and enable this check if desired.
+		return 1;  // Fix!!
 		
 		if (!$SrvRsc = $this->SrvRsc) { return; }
 		$UserID = 2;  // Fix!! GetUserID($this->DbName, $this->DbHost);  // Fix. Use without a second CheckUserAccess() call.
@@ -116,17 +164,17 @@ class DatabaseObj {
 		}
 		echo "<p>DatabaseObj->CheckUserAccess() \$this: |".HtmlArray($this)."|</p>";
 		
-		$Result = mysql_query("SHOW TABLES LIKE 'Table_pri'", $SrvRsc);
+		$Result = $this->db_query("SHOW TABLES LIKE 'Table_pri'", $SrvRsc);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$Result: |{$Result}|, \$SrvRsc: |{$SrvRsc}|</p>";
 		if (!mysql_num_rows($Result)) { return 1; }
 		
 		$Query = "SELECT TableID FROM Table_pri WHERE Name = '{$TableName}'";
-		$Result = mysql_query($Query, $this->SrvRsc);
+		$Result = $this->db_query($Query, $this->SrvRsc);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$Result: |{$Result}|, \$ItemName: |{$ItemName}|</p>";
 		list($TableID) = mysql_fetch_row($Result);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$TableID: |{$TableID}|</p>";
 		if (!$TableID) { return 1; }
-		if (mysql_num_rows(mysql_query("SELECT * FROM User_Table_ref WHERE UserID = '{$UserID}' AND TableID = '{$UserID}'", $this->SrvRsc))) { return 1; }
+		if (mysql_num_rows($this->db_query("SELECT * FROM User_Table_ref WHERE UserID = '{$UserID}' AND TableID = '{$UserID}'", $this->SrvRsc))) { return 1; }
 	}
 
 
@@ -146,21 +194,11 @@ class DatabaseObj {
 		
 		//if ($Echo) { echo "<p>DatabaseObj->DbConnect() \$DbPass |{$DbPass}|</p>\n"; }
 		if (!$DbHost) { $DbHost = 'localhost'; }  // Fix?  May not want to do this here, or at all.
-		if ($DbServerRsc = mysql_connect($DbHost, $DbUser, $DbPass)) {
-			$this->SrvRsc = $DbServerRsc;
-			$this->DbName = $DbName;
-			$this->DbHost = $DbHost;
+		if ($DbServerRsc=$this->db_connect()) {
 			if ($Echo) { echo "<p>DatabaseObj->DbConnect() Successfully logged in on host \$DbHost |{$DbHost}| as user |{$DbUser}|</p>"; }
 		} else {
 			echo "<p>DatabaseObj->DbConnect() FAILED to login on \$DbHost |{$DbHost}| as \$DbUser |{$DbUser}| using this \$DbPass</p>";
 			return;  // Fix. Should probably specify bad connection.
-		}
-		if ($this->CheckDbUser()) {  // If db exists under this user
-			mysql_select_db($DbName, $DbServerRsc);
-			if ($Echo) { echo "<p>DatabaseObj->DbConnect() Connected to database |{$DbHost}| on host \$DbHost |{$DbHost}| as user |{$DbUser}|</p>"; }
-		} else {
-			echo "<p>DatabaseObj->DbConnect() \$DbName |{$DbName}| is not available to \$DbUser |{$DbUser}|.</p>";
-			return;  // Fix. Should probably specify db not accessible to user.
 		}
 		//echo "<p>DatabaseObj->DbConnect() Logged into \$DbName |{$DbName}| on \$DbHost |{$DbHost}| as \$DbUser |{$DbUser}| with \$DbPass |{$DbPass}|</p>";
 		return $DbServerRsc;  // Fix? May be a security issue?
@@ -170,7 +208,7 @@ class DatabaseObj {
 	// Returns a 1D array in the form array($DbUser, $DbPass). The purpose is to keep the login info out of session vars for security. Better solution?
 	private function GetLoginInfo($DbName=0, $DbHost=0, $DbUser=0, $Echo=0) {  // Fix! To incorporate user automation...
 		if ($LoginArray = $this->GetLoginFile($DbName, $DbHost, $DbUser, $Echo)) {  // Checks for file first. Fix?
-			//if ($Echo) { echo "<p>DatabaseObj->GetLoginInfo() called from File, \$LoginArray: |".HtmlArray($LoginArray)."|</p>"; }
+			if ($Echo) { echo "<p>DatabaseObj->GetLoginInfo() called from File, \$LoginArray: |".HtmlArray($LoginArray)."|</p>"; }
 			return $LoginArray;
 		} else if ($LoginArray = $this->GetLoginFromDb($DbName, $DbHost, $DbUser)) {  // Checks for Db records for this db. Fix?
 			//echo "<p>DatabaseObj->GetLoginInfo() called from DB, \$LoginArray: |".HtmlArray($LoginArray)."|</p>";
@@ -195,13 +233,21 @@ class DatabaseObj {
 		$FilePath = "db/{$DbFile}.php";  // Fix? Originally temporary hack for brevity.
 		if ($Echo) { echo "<p>DatabaseObj->GetLoginFile() \$FilePath:|{$FilePath}|</p>\n"; }
 		if (file_exists($FilePath)) {
+			if ($Echo) { echo "<p>DatabaseObj->GetLoginFile() Found local file {$FilePath}.</p>\n"; }
 			if (!include($FilePath)) { 
 				echo "<p>DatabaseObj->GetLoginFile() Error loading local file {$FilePath}.</p>\n";  // Fix? Require $Echo? 
-			} else if ($Echo) { "<p>DatabaseObj->GetLoginFile() Successfully loaded local file {$FilePath}.</p>\n"; }
+			} else {
+				if ($Echo) { "<p>DatabaseObj->GetLoginFile() Successfully loaded local file {$FilePath}.</p>\n"; }
+			}
 		} else if (file_exists($GlobalCheck=($this->LoginFileRoot().$DbFile.'.php'))) {  // Fix! Quick hack to access server root using new include path.
-			if (!include($GlobalCheck)) {
-					echo "<p>DatabaseObj->GetLoginFile() Error loading global file {$GlobalCheck}.</p>\n";
-			} else if ($Echo) { "<p>DatabaseObj->GetLoginFile() Successfully loaded global file {$GlobalCheck}.</p>\n"; }	
+			if ($Echo) { echo "<p>DatabaseObj->GetLoginFile() No local file {$FilePath}.  Found global file {$GlobalCheck}.</p>\n"; }
+			$Loaded = include($GlobalCheck);
+			if (!$Loaded) {
+					echo "<p>DatabaseObj->GetLoginFile() Error loading global file {$GlobalCheck}.</p>\n";  // Fix? Require $Echo? 
+			} else {
+				list($DbName, $DbHost, $DbUser, $DbPass) = LoadedFromFile();  // Fix. Quick hack due to new server settings.
+				if ($Echo) { echo "<p>DatabaseObj->GetLoginFile() Successfully loaded global file {$GlobalCheck}.</p>\n"; }
+			}	
 		} else {
 			echo "<p>DatabaseObj->GetLoginFile() \$DbFile |{$DbFile}| does not exist at |{$FilePath}| nor |{$GlobalCheck}|.</p>\n";  // Fix? Require $Echo? 
 			return;
@@ -210,14 +256,14 @@ class DatabaseObj {
 			if ($Echo) { EchoV(array('$Redirect'=>$Redirect, '$DbName'=>$DbName, '$DbHost'=>$DbHost, '$DbUser'=>$DbUser, '$DbPass'=>$DbPass), 'REDIRECT detected after loading file'); }  // Fix.
 			return $this->GetLoginFile($Redirect, $DbHost, $DbUser);  // Fix. Block infinite recursion, errorcheck. // Fix? May be more confusing/dangerous than it's worth?
 		}
-		//if ($Echo) { EchoV(array('$DbName'=>$DbName, '$DbHost'=>$DbHost, '$DbUser'=>$DbUser, '$DbPass'=>$DbPass), 'After loading file'); }  // Fix.
+		if ($Echo) { EchoV(array('$DbName'=>$DbName, '$DbHost'=>$DbHost, '$DbUser'=>$DbUser, '$DbPass'=>$DbPass), 'After loading file'); }  // Fix.
 		return ($DbUser && $DbPass) ? (array($DbName, $DbHost, $DbUser, $DbPass)) : (0);
 	}
 	
 	
 	// Returns the global directory for db login file access.
 	private function LoginFileRoot() {
-		return '~/public_html/db/';  // Fix!  Temporary hack to account for subdomain root dirs. Customize for specific project needs or pass directly. 
+		return '/srv/data/web/includes/db/';  // Fix!  Temporary hack.
 	}
 
 	// Checks whether login info for this db is in the central DB database.
@@ -238,13 +284,13 @@ class DatabaseObj {
 	
 	
 	// Returns a 1D Array of all Dbs on this host (For this user).
-	private function GetDbList() {
-		$DbListRsc = mysql_list_dbs();
+	private function GetDbList($Echo=0) {
+		$DbListRsc = mysql_query('SHOW DATABASES');  // mysql_list_dbs();
 		while ($DbRow = mysql_fetch_array($DbListRsc)) {
 			$DbName = $DbRow['Database'];
 			$DbList[] = $DbName;
 		}
-		//echo "<p>DbObj.php DatabaseObj->GetDbList() \$DbList: |".HtmlArray($DbList)."|</p>\n";
+		if ($Echo) { echo "<p>DbObj.php DatabaseObj->GetDbList() \$DbList: |".HtmlArray($DbList)."|</p>\n"; }
 		return $DbList;
 	}
 	
@@ -498,7 +544,7 @@ class DatabaseObj {
 	private function Query($Query=0, $Echo=0, $ArrayCtrl=0) {  //  Fix! Implememt restrictions and security.
 		if (!$Query) { return; }
 		$Query = $this->FormatQuery($Query, $Echo);
-		if (!$Result = mysql_query($Query, $this->SrvRsc)) {
+		if (!$Result = $this->db_query($Query, $this->SrvRsc)) {
 			if ($Echo) { echo "<p>DatabaseObj->Query() This Query Obtained no Result. Returning NULL.</p>\n"; }
 			return;
 		}
@@ -609,15 +655,14 @@ class DatabaseObj {
 	
 	// Used to match queries with multiple parameters using a simple interface. $ItemArray is array('FieldName'=>'Value', 'FieldName'=>'Value') for all required fields in the query, returned ordered in the order they are passed. '<', '>', '<=', '>=' can be included at the beginning of the 'Value' portion of $ItemArray to do comparison operations. If other order is wanted, $OrderString is used directly as "ORDER BY {$OrderString}" and can include DESCENDING if desired; if -1 it will return a single row without the containing array, and any other number will return an array with that number of rows. $ItemArray can also be a single value to match with the primary key, or even null, 0, or '*' to return the entire table contents. $Echo can be used to echo the results of several aspects of the query as well as to echo $Echo itself to pass messages from calling functions. ArrayCtrl is used to specify the format of the returned array, as MYSQL_BOTH, MYSQL_NUM, or defaults to MYSQL_ASSOC. 
 	function SelectQuery($TableName, $ItemArray=0, $OrderString=0, $Echo=0, $ArrayCtrl=0) {
-		if ($Echo) { echo "<p>DatabaseObj->SelectQuery() \$Echo: \$TableName: |{$TableName}|, \$ItemArray: |".HtmlArray($ItemArray)."|, \$OrderString: |{$OrderString}|, \$Echo: |{$Echo}|</p>\n"; }
+		// if ($Echo) { echo "<p>DatabaseObj->SelectQuery() \$Echo: \$TableName: |{$TableName}|, \$ItemArray: |".HtmlArray($ItemArray)."|, \$OrderString: |{$OrderString}|, \$Echo: |{$Echo}|</p>\n"; }
 		if (!$this->CheckTable($TableName)) {
 			if ($Echo) { echo "<p>DatabaseObj->SelectQuery() CheckTable() failed for \$TableName |{$TableName}|.</p>\n"; }
 			return; 
 		}
 		$Query = "SELECT * FROM {$TableName}";
 		$Query .= $this->ParseItemArray($ItemArray, $OrderString, $TableName);
-		//echo "<p>db_obj.php DatabaseObj->SelectQuery() \$this: |".HtmlArray($this)."|</p>\n";
-		if (!$Result = mysql_query($Query, $this->SrvRsc)) {
+		if (!$Result = $this->db_query($Query, $this->SrvRsc)) {
 			if ($Echo) { EchoV(array('$Query'=>$Query), 'This Query Obtained no Result. Returning NULL.'); }
 			//if ($Echo) { echo "<p>DatabaseObj->SelectQuery() This Query Obtained no Result. Returning NULL.</p>\n"; }
 			return;
@@ -642,7 +687,7 @@ class DatabaseObj {
 	// Returns an array representing the field data for a single entry based on its _pri ID. $ArrayCtrl is used to specify the format of the returned array, as MYSQL_BOTH, MYSQL_NUM, or defaults to MYSQL_ASSOC.
 	function IDQuery($TableName, $ThisID, $ArrayCtrl=0) {
 		if (!$ThisID) { return; }
-		$TableArray = $this->SelectQuery($TableName, $ThisID, 0, $ArrayCtrl);
+		$TableArray = $this->SelectQuery($TableName, $ThisID, null, null, $ArrayCtrl);
 		//echo "<p>db_obj.php DatabaseObj->IDQuery() \$TableArray: |".HtmlArray($TableArray)."|</p>\n";
 		if (is_array($TableArray)) { return $TableArray[0]; }
 	}
@@ -651,13 +696,20 @@ class DatabaseObj {
 	// Returns an array with field data for a single entry based on the value of a specified field. FieldName defaults to 'Name'.
 	function ValueQuery($TableName, $Value, $FieldName=0, $Echo=0) {
 		$FieldName = (($FieldName)?($FieldName):('Name'));
-		return $this->SelectQuery($TableName, array($FieldName=>$Value), 0, $Echo);
+		return $this->SelectQuery($TableName, array($FieldName=>$Value), null, $Echo);
 	}
 	
 	
 	// Returns a single row matching characteristics passed in $ItemArray, and ordered using the order passed.
-	function RowQuery($TableName, $ItemArray=0, $ArrayCtrl=0) {
-		return $this->SelectQuery($TableName, $ItemArray, -1, $Echo=0, $ArrayCtrl);
+	function RowQuery($TableName, $ItemArray=0, $Echo=null) {
+		return $this->SelectQuery($TableName, $ItemArray, -1, $Echo);
+	}
+	
+	
+	// Returns a single field value for the row matching characteristics passed in $ItemArray, prioritized using the order passed in ItemArray.
+	function ItemQuery($TableName, $ItemArray=0, $FieldName=0, $ArrayCtrl=0) {
+		$Row = $this->RowQuery($TableName, $ItemArray, $ArrayCtrl);
+		if (is_array($Row) && array_key_exists($FieldName, $Row)) { return $Row[$FieldName]; }
 	}
 	
 	
@@ -681,10 +733,10 @@ class DatabaseObj {
 	
 	
 	// Returns a single ID value for a _pri item based on field value(s) passed. If more than one result, returns the first in order. Parameters function like those in SelectQuery.
-	function IDFromValue($TableName, $ItemArray=0, $OrderString=0) {
+	function IDFromValue($TableName, $ItemArray=0, $OrderString=0, $Echo=0) {
 		//echo "<p>DatabaseObj.php DatabaseObj->IDFromValue() \$TableName: |{$TableName}|, \$ItemArray: |".HtmlArray($ItemArray)."|, \$OrderString: |{$OrderString}|</p>\n";
 		if ($ItemArray && !is_array($ItemArray) && is_string($ItemArray)) { $ItemArray = array('Name'=>$ItemArray); }  // Fix? May be pointless to have this option?
-		$TableArray = $this->SelectQuery($TableName, $ItemArray, $OrderString);
+		$TableArray = $this->SelectQuery($TableName, $ItemArray, $OrderString, $Echo);
 		if (is_array($TableArray)) { $ItemArray = $TableArray[0]; } else { return; }
 		if (is_array($ItemArray)) {
 			$ThisKey = $this->GetKey($TableName);
@@ -710,18 +762,18 @@ class DatabaseObj {
 	}
 	
 	
-	// Returns a single item based on the $FieldName and $Value.  If multiple items are returned, it will follow behavior based on $Multiple ('first', 'last', 'all', 'null', 'alert'), defaults to 'first'.
-	function ItemQuery($TableName, $ItemArray, $FieldName, $Multiple=0) {  // Fix! Identify original intention for this and fix it.
-		$TableArray = $this->SelectQuery($TableName, $ItemArray, $OrderString);
-		if (is_array($TableArray)) {
-			if (!$Multiple || $Multiple == 'first') {
-				$ItemArray = $TableArray[0];
-				return $ItemArray[$FieldName];  // Fix.  Error handling.
-			} else {
-				return $this->SelectQuery($TableName, $ItemArray, $OrderString);  // Fix. Verify this works.
-			}
-		} else { return; }
-	}
+	// // Returns a single item based on the $FieldName and $Value.  If multiple items are returned, it will follow behavior based on $Multiple ('first', 'last', 'all', 'null', 'alert'), defaults to 'first'.
+	// function ItemQuery($TableName, $ItemArray, $FieldName, $Multiple=0) {  // Fix! Identify original intention for this and fix it.
+		// $TableArray = $this->SelectQuery($TableName, $ItemArray, $OrderString);
+		// if (is_array($TableArray)) {
+			// if (!$Multiple || $Multiple == 'first') {
+				// $ItemArray = $TableArray[0];
+				// return $ItemArray[$FieldName];  // Fix.  Error handling.
+			// } else {
+				// return $this->SelectQuery($TableName, $ItemArray, $OrderString);  // Fix. Verify this works.
+			// }
+		// } else { return; }
+	// }
 	
 	
 	// Returns the max value for $MaxField in $TableName, with conditionals in $ItemArray if desired. if ($FullReturn), it will return the entire row.
@@ -729,7 +781,7 @@ class DatabaseObj {
 		$Query = "SELECT MAX({$MaxField}) AS {$MaxField} FROM {$TableName}";
 		$Query .= ParseItemArray($ItemArray);
 		if ($Echo) { echo "<p>DatabaseObj->MaxQuery() \$Query: |{$Query}|</p>\n"; }
-		if (!$Result = mysql_query($Query, $this->SrvRsc)) {
+		if (!$Result = $this->db_query($Query, $this->SrvRsc)) {
 			if ($Echo) { echo "<p>DatabaseObj->MaxQuery() This Query Obtained no Result. Returning NULL.</p>\n"; }
 			return;
 		}
@@ -751,7 +803,7 @@ class DatabaseObj {
 		if (!$ArrayCtrl) { $ArrayCtrl = MYSQL_ASSOC; }  // MYSQL_BOTH; MYSQL_NUM;
 
 		//echo "<p>db_obj.php DatabaseObj->QueryArray() \$Query: |{$Query}|</p>\n";
-		$Result = mysql_query($Query, $this->SrvRsc);
+		$Result = $this->db_query($Query, $this->SrvRsc);
 		while ($RowArray = mysql_fetch_array($Result, $ArrayCtrl)) {
 			$TableArray[] = $RowArray;
 			// if (count($TableArray) >= $CutOff) { break; }  // Fix? May want this...
@@ -782,7 +834,7 @@ class DatabaseObj {
 		//echo "<p>mysql_tools InsertQuery()  \$ItemArray: " . HtmlArray($ItemArray) . "</p>\n";
 		$Query = "INSERT INTO {$TableName} ({$FieldString}) VALUES ({$DataString})"; 
 		if ($Echo) { echo "<p>DatabaseObj->InsertQuery() \$Query: |{$Query}|</p>\n"; }
-		$Result = mysql_query($Query, $this->SrvRsc) or die ('DatabaseObj->InsertQuery() Unable to add entry: ' . mysql_error());
+		$Result = $this->db_query($Query, $this->SrvRsc) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . mysql_error());  //  . EchoV());
 		$NewID = mysql_insert_id();
 		//SetDatabaseObj($this->Name, $this->DbHost);
 		if ($Echo) { echo "<p>DatabaseObj->InsertQuery() \$NewID: |{$NewID}|</p>\n"; }
@@ -860,7 +912,7 @@ class DatabaseObj {
 		$KeyField = $this->GetKey($TableName);
 		$Query .= " WHERE {$KeyField}={$ThisID}";
 		if ($Echo) { echo "<p>DatabaseObj->UpdateQuery() \$Query: |{$Query}|</p>\n"; }
-		$Result = mysql_query($Query, $this->SrvRsc);
+		$Result = $this->db_query($Query, $this->SrvRsc);
 		if ($Echo && !$Result) { echo "<p>DatabaseObj->UpdateQuery() Not Updated! \$Result: |{$Result}|</p>\n"; }
 		return ($Result) ? (1) : (0);
 	}
@@ -883,7 +935,7 @@ class DatabaseObj {
 			$Query = "DELETE FROM {$TableName} WHERE {$KeyField} = '{$ItemsOrID}'";
 		}
 		if ($Echo) { echo "<p>DatabaseObj->DeleteQuery() \$Query: |{$Query}|</p>\n"; }
-		//$Result = mysql_query($Query, $this->SrvRsc);  // Fix... For multiple entry deletion.
+		//$Result = $this->db_query($Query, $this->SrvRsc);  // Fix... For multiple entry deletion.
 		if ($Echo && !$Result) { echo "<p>DatabaseObj->DeleteQuery() Not Deleted! \$Result: |{$Result}|</p>\n"; }
 		return ($Result) ? (1) : (0);
 	}
@@ -940,7 +992,7 @@ class DatabaseObj {
 	// Gets the RefEntry field name value for a _ref table. (Meaning the first field in a _ref structured table, the unique key and incremented field for the table.).
 	function GetRefEntry($ThisTable) {
 		$Query = "DESCRIBE {$ThisTable}";
-		if (!$Result = mysql_query($Query, $this->SrvRsc)) { return; }
+		if (!$Result = $this->db_query($Query, $this->SrvRsc)) { return; }
 		while ($ThisRow = mysql_fetch_row($Result)) { return $ThisRow[0]; }
 		echo "<p>No Reference ID Field Found for {$ThisTable}</p>\n";  // Fix? Just delete this line?
 	}
@@ -982,7 +1034,7 @@ class DatabaseObj {
 		}*/
 		$Query = "DROP TABLE IF EXISTS {$TableString}";
 		if ($Echo) { echo "<p>DatabaseObj->DropTable() \$Query: '{$Query}'.</p>\n"; }
-		$Result = mysql_query($Query, $this->SrvRsc);
+		$Result = $this->db_query($Query, $this->SrvRsc);
 		foreach($TableNames as $Table) {  // Unfortunately this seems necessary as none of the built-in functions that I could find return a table drop count.
 			if (!$this->CheckTable($Table)) {
 				$NumDropped++; 
@@ -1042,7 +1094,7 @@ class DatabaseObj {
 			if ($Query = $this->FormatQuery($QueryLine, $Echo)) {
 				//if ($Echo) { echo "<p>DatabaseObj->ParseSqlString() Re-formatted \$Query:</br>|<b>{$Query}</b>|</p>\n"; }
 				if ($this->CommandChecks(($Query.=';'), $Echo, $Force)) {
-					if (!$Result = mysql_query($Query, $this->SrvRsc)) { 
+					if (!$Result = $this->db_query($Query, $this->SrvRsc)) { 
 						$ErrorCount++;
 						if ($Echo) { echo "<font color=red>Error: ".mysql_error($this->SrvRsc)."<br>\n"; }
 					} else {
@@ -1371,7 +1423,7 @@ function GetDatabaseObj($DbName=0, $DbHost=0, $ForceNew=0, $Echo=0) { global $db
 function SetDatabaseObj($DbName=0, $DbHost=0, $LoginArray=0, $Echo=0) { global $dbArray;  // Fix. Include $DbHost functionality.
 	if (!$dbArray) { $dbArray = array(); } 
 	if ($LoginArray && is_array($LoginArray) && (count($LoginArray) == 2)) { list($dbUser, $dbPass) = $LoginArray; }
-	$DatabaseObj = new DatabaseObj($DbName, $DbHost, $dbUser, $dbPass);
+	$DatabaseObj = new DatabaseObj($DbName, $DbHost, $dbUser, $dbPass, $Echo);
 	if (!$DatabaseObj->CheckUserAccess()) { 
 		echo "<h3>DatabaseObj.php SetDatabaseObj() You do not have access privilages for this database.  Returning NULL.</h3>\n";  // Fix. Security, output handling.
 		return;

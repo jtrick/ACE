@@ -632,6 +632,8 @@ class DatabaseObj {
 				} else if (strpos($Value, '>') !== false) {  // If '>' Occurs.
 					$CompChar = '>';
 					if (strpos($Value, '=')) { $CompChar .= '='; }
+				} else if(strpos($value, '!=')) {
+					$CompChar = '!=';					
 				} else { 
 					$CompChar = '=';
 				}

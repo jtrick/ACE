@@ -628,16 +628,16 @@ class DatabaseObj {
 				if ($And++) { $Query .= " AND "; }
 				if (strpos($Value, '<') !== false) {  // If '<' Occurs.
 					$CompChar = '<';
-					if (strpos($Value, '=')) { $CompChar .= '='; } 
+					if (strpos($Value, '=')) { $CompChar .= '='; }  // If actually <=
 				} else if (strpos($Value, '>') !== false) {  // If '>' Occurs.
 					$CompChar = '>';
-					if (strpos($Value, '=')) { $CompChar .= '='; }
-				} else if(strpos($value, '!=')) {
+					if (strpos($Value, '=')) { $CompChar .= '='; }  // If actually >=
+				} else if(strpos($Value, '!=')) {
 					$CompChar = '!=';					
 				} else { 
 					$CompChar = '=';
 				}
-				$Value = ltrim($Value, '<=> ');
+				$Value = ltrim($Value, '!<>= ');
 				$Query .= "{$FieldName} {$CompChar} '{$Value}'";
 				$OrderBy .= "{$FieldName}, ";
 			}

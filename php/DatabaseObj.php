@@ -9,27 +9,7 @@ include_once('array_tools.php');
 
 class DatabaseObj { 
 	function DatabaseObj($DbItems=0, $Echo=0) {
-		if ($Echo) { EchoV(array('$DbItems'=>$DbItems,'$Echo'=>$Echo)); }
-		if (is_string($DbItems)) {
-			if (!$DbItems=json_decode($DbName=$DbItems)) {
-				if (strpos($DbName,' ')===FALSE) {
-					if ($Echo) { EchoV($DbName,'Using simple string DbItems as DbName'); }
-					$this->DbName = $DbName;
-				} else {
-					// Fix. Continue for other string parsing options.
-				} 
-			} else {
-				if ($Echo) { EchoV($DbItems,'Instantiated login DbItems from JSON'); }
-			}
-		}
-		if (is_array($DbItems)) {  // Fix. Add checking process.
-			if (isset($DbItems['host'])) { $this->DbHost = $DbItems['host']; }  
-			if (isset($DbItems['user'])) { $this->DbUser = $DbItems['user']; }
-			if (isset($DbItems['pass'])) { $this->DbPass = $DbItems['pass']; }
-			if (isset($DbItems['type'])) { $this->DbType = $DbItems['type']; }
-			if (isset($DbItems['data'])) { $this->DbName = $DbItems['data']; }
-		}
-		
+		$this->TranslateDbItems($DbItems, $Echo);	
 		if (!$this->CheckUserAccess()) { return; }
 		if ($Echo) { echo "<p>DatabaseObj->DatabaseObj() \$DbName:|{$this->DbName}|, \$DbHost:|{$this->DbHost}|, \$DbUser:|{$this->DbUser}|, \$DbPass:|{$this->DbPass}|, \$DbType:|{$this->DbType}|</p>\n"; }
 		
@@ -204,6 +184,34 @@ class DatabaseObj {
 	// Login and Access Functions:  /////////////////
 
 
+	
+	
+	function TranslateDbItems($DbItems=0, $Echo=0) {
+		if ($Echo) { EchoV(array('$DbItems'=>$DbItems,'$Echo'=>$Echo)); }
+		if (is_string($DbItems)) {
+			if (!$DbItems=json_decode($DbName=$DbItems, TRUE)) {
+				if (strpos($DbName,' ')===FALSE) {
+					if ($Echo) { EchoV($DbName,'Using simple string DbItems as DbName'); }
+					$this->DbName = $DbName;
+				} else {
+					if ($Echo) { EchoV(json_last_error(),'JSON Error code while translating DbItems'); }
+					// Fix. Continue for other string parsing options.
+				} 
+			} else {
+				if ($Echo) { EchoV($DbItems,'Instantiated login DbItems from JSON'); }
+			}
+		}
+		if (is_array($DbItems)) {  // Fix. Add checking process.
+			if (isset($DbItems['host'])) { $this->DbHost = $DbItems['host']; }  
+			if (isset($DbItems['user'])) { $this->DbUser = $DbItems['user']; }
+			if (isset($DbItems['pass'])) { $this->DbPass = $DbItems['pass']; }
+			if (isset($DbItems['type'])) { $this->DbType = $DbItems['type']; }
+			if (isset($DbItems['data'])) { $this->DbName = $DbItems['data']; }
+			return TRUE;
+		}
+	}
+	
+	
 	// Returns bool indicating whether this db has been instantiated correctly.
 	function IsLoaded($Echo=0) {
 		if ($Echo) { echo "<p>DatabaseObj->IsLoaded() \$IsLoaded: |{$this->IsLoaded}|</p>"; }
@@ -230,7 +238,7 @@ class DatabaseObj {
 		$Query = "SELECT TableID FROM Table_pri WHERE Name = '{$TableName}'";
 		$Result = $this->db_query($Query, $this->SrvRsc);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$Result: |{$Result}|, \$ItemName: |{$ItemName}|</p>";
-		list($TableID) = db_fetch_row($Result);
+		list($TableID) = $this->db_fetch_row($Result);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$TableID: |{$TableID}|</p>";
 		if (!$TableID) { return 1; }
 		if (db_num_rows($this->db_query("SELECT * FROM User_Table_ref WHERE UserID = '{$UserID}' AND TableID = '{$UserID}'", $this->SrvRsc))) { return 1; }
@@ -265,14 +273,14 @@ class DatabaseObj {
 	private function GetLoginInfo($Echo=0) {  // Fix.  Update this output.
 		if ($this->GetLoginFile($Echo)) {  // Checks for file first. Fix?
 			if ($Echo) { echo "<p>DatabaseObj->GetLoginInfo() successfully obtained info from file.</p>"; }
-			return $LoginArray;
 		} else if ($this->GetLoginFromDb()) {  // Checks for Db records for this db. Fix?
 			//echo "<p>DatabaseObj->GetLoginInfo() called from DB, \$LoginArray: |".HtmlArray($LoginArray)."|</p>";
-			return $LoginArray;
 		} else if ($this->GetLoginDefault()) {  // If all else fails. Fix?
 			echo "<p>DatabaseObj->GetLoginInfo() called from Default, \$LoginArray: |".HtmlArray($LoginArray)."|</p>";
-			return $LoginArray;
+		} else {
+			return;
 		}
+		return TRUE;
 	}
 	
 	
@@ -288,42 +296,37 @@ class DatabaseObj {
 			$DbHost = 'localhost'; 
 			$DbFile = $DbName;
 		}
-		$FilePath = "db/{$DbFile}.php";  // Fix? Originally temporary hack for brevity.
+		$FilePath = "db/{$DbFile}.db";  // Fix? Originally temporary hack for brevity.
 		if ($Echo) { echo "<p>DatabaseObj->GetLoginFile() \$FilePath:|{$FilePath}|</p>\n"; }
 		if (file_exists($FilePath)) {
 			if ($Echo) { echo "<p>DatabaseObj->GetLoginFile() Found local file {$FilePath}.</p>\n"; }
-			if (!include($FilePath)) { 
+			if (!$Loaded = file_get_contents($FilePath, FILE_USE_INCLUDE_PATH)) { 
 				echo "<p>DatabaseObj->GetLoginFile() Error loading local file {$FilePath}.</p>\n";  // Fix? Require $Echo? 
 			} else {
 				if ($Echo) { "<p>DatabaseObj->GetLoginFile() Successfully loaded local file {$FilePath}.</p>\n"; }
 			}
-		} else if (file_exists($GlobalCheck=($this->LoginFileRoot().$DbFile.'.php'))) {  // Fix! Quick hack to access server root using new include path.
+		} else if (file_exists($GlobalCheck=($this->LoginFileRoot().$DbFile.'.db'))) {  // Fix! Quick hack to access server root using new include path.
 			if ($Echo) { echo "<p>DatabaseObj->GetLoginFile() No local file {$FilePath}.  Found global file {$GlobalCheck}.</p>\n"; }
-			$Loaded = include($GlobalCheck);
-			if (!$Loaded) {
+			if (!$Loaded = file_get_contents($GlobalCheck, FILE_USE_INCLUDE_PATH)) {
 					echo "<p>DatabaseObj->GetLoginFile() Error loading global file {$GlobalCheck}.</p>\n";  // Fix? Require $Echo? 
 			} else {
-				list($DbName, $DbHost, $DbUser, $DbPass) = LoadedFromFile();  // Fix. Quick hack due to new server settings.
 				if ($Echo) { echo "<p>DatabaseObj->GetLoginFile() Successfully loaded global file {$GlobalCheck}.</p>\n"; }
 			}	
 		} else {
 			echo "<p>DatabaseObj->GetLoginFile() \$DbFile |{$DbFile}| does not exist at |{$FilePath}| nor |{$GlobalCheck}|.</p>\n";  // Fix? Require $Echo? 
 			return;
 		}
+		if (!$this->TranslateDbItems($Loaded, $Echo)) {
+			echo "<p>DatabaseObj->GetLoginFile() Error translating file for db initialization.</p>\n";  // Fix? Require $Echo?
+			return;
+		} else {
+			return TRUE;
+		}
 		if ($Redirect) {  // Fix.  If the login file contains a $Redirect var to use login info for another Database.
 			if ($Echo) { EchoV(array('$Redirect'=>$Redirect, '$DbName'=>$DbName, '$DbHost'=>$DbHost, '$DbUser'=>$DbUser, '$DbPass'=>$DbPass), 'REDIRECT detected after loading file'); }  // Fix.
 			$this->DbHost = $DbHost;
 			$this->DbName = $DbName;
 			return $this->GetLoginFile();  // Fix. Block infinite recursion, errorcheck. // Fix? May be more confusing/dangerous than it's worth?
-		}
-		if ($Echo) { EchoV(array('$DbName'=>$DbName, '$DbHost'=>$DbHost, '$DbUser'=>$DbUser, '$DbPass'=>$DbPass), 'After loading file'); }  // Fix.
-		if ($DbUser && $DbPass) {  // Fix. Make more effective.
-			if ($DbHost) { $this->DbHost = $DbHost; }
-			if ($DbName) { $this->DbName = $DbName; }
-			if ($DbUser) { $this->DbUser = $DbUser; }
-			if ($DbPass) { $this->DbPass = $DbPass; }
-			if ($DbType) { $this->DbType = $DbType; }
-			return 1;
 		}
 	}
 	
@@ -403,7 +406,7 @@ class DatabaseObj {
 		$SrvRsc = $this->SrvRsc;
 		$Result = $this->db_query($Query, $SrvRsc);
 		if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListTables() \$Query: |{$Query}|, \$SrvRsc: |{$SrvRsc}|, \$Result: |{$Result}|</p>\n"; }
-		while (list($ThisTable) = db_fetch_row($Result)) {
+		while (list($ThisTable) = $this->db_fetch_row($Result)) {
 			$TableList[] = $ThisTable;
 		}
 		if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListTables() \$TableList: |".HtmlArray($TableList)."|</p>\n"; }
@@ -595,7 +598,7 @@ class DatabaseObj {
 		//echo "<p>db_obj.php DatabaseObj->GetKey() \$ThisTable: |{$ThisTable}|</p>\n"
 		$Query = "SHOW INDEX FROM {$TableName}";
 		if (!$Result = $this->db_query($Query, $this->SrvRsc)) { return; }
-		while ($ThisRow = db_fetch_row($Result)) {
+		while ($ThisRow = $this->db_fetch_row($Result)) {
 			//echo "<p>db_obj.php DatabaseObj->GetKey() \$ThisRow: |".HtmlArray($ThisRow)."|</p>\n";
 			if ($ThisRow[2] == 'PRIMARY') {
 				return $ThisRow[4];
@@ -1066,7 +1069,7 @@ class DatabaseObj {
 	function GetRefEntry($ThisTable) {
 		$Query = "DESCRIBE {$ThisTable}";
 		if (!$Result = $this->db_query($Query, $this->SrvRsc)) { return; }
-		while ($ThisRow = db_fetch_row($Result)) { return $ThisRow[0]; }
+		while ($ThisRow = $this->db_fetch_row($Result)) { return $ThisRow[0]; }
 		echo "<p>No Reference ID Field Found for {$ThisTable}</p>\n";  // Fix? Just delete this line?
 	}
 	

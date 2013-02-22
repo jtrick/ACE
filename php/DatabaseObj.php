@@ -11,17 +11,22 @@ class DatabaseObj {
 	function DatabaseObj($DbName=0, $DbHost=0, $DbUser=0, $DbPass=0, $DbType=0, $Echo=0) {  // Fix. Leaving additional args for back-compatability, but should really convert all dependent apps to use an array for instantiating new DatabaseObj. More flexible and extensible.
 		//$Echo = "Set from DatabaseObj()";
 		//echo "<p>\$Echo: {$Echo}</p>";
-		if (is_array($DbName)) {  // Fix. Add setting of $this->DbName, etc. and use throughout initialization process.
-			if (isset($DbName['DbHost'])) { $DbHost = $DbName['DbHost']; }  
-			if (isset($DbName['DbUser'])) { $DbUser = $DbName['DbUser']; }
-			if (isset($DbName['DbPass'])) { $DbPass = $DbName['DbPass']; }
-			if (isset($DbName['DbType'])) { $DbType = $DbName['DbType']; }
-			if (isset($DbName['DbName'])) { $DbName = $DbName['DbName']; }
+		if (is_array($DbName)) {  // Fix. Add checking process.
+			if (isset($DbName['host'])) { $DbHost = $DbName['host']; }  
+			if (isset($DbName['user'])) { $DbUser = $DbName['user']; }
+			if (isset($DbName['pass'])) { $DbPass = $DbName['pass']; }
+			if (isset($DbName['type'])) { $DbType = $DbName['type']; }
+			if (isset($DbName['data'])) { $DbName = $DbName['data']; }
 		}
+		$this->DbName = $DbName;
+		$this->DbHost = $DbHost;
+		$this->DbUser = $DbUser;
+		$this->DbPass = $DbPass;
+		$this->DbType = $DbType;
 		if (!$this->CheckUserAccess()) { return; }
 		if ($Echo) { echo "<p>DatabaseObj->DatabaseObj() \$DbName:|{$DbName}|, \$DbHost:|{$DbHost}|, \$DbUser:|{$DbUser}|, \$DbPass:|{$DbPass}|</p>\n"; }
 		
-		$Connected = $this->DbConnect($DbName, $DbHost, $DbUser, $DbPass, $Echo);  // Fix. Use $this->DbItems-set vars and drop explicit arg passing.
+		$Connected = $this->DbConnect($Echo);
 		if (!$Connected) { return; }  // Fix. Should specify reason for error.	
 		$this->IsLoaded = (($this->LoadObj()) ? (true) : (false)); // Fix? Make more useful?
 		//echo "<p>DatabaseObj->DatabaseObj() \$this: |".HtmlArray($this)."|</p>";
@@ -77,7 +82,7 @@ class DatabaseObj {
 
 
 	// Returns the value associated with the object attribute $this->{"$ThisItem"} if applicable.
-	public function Get($ItemName) {
+	public function Get($ItemName) {  // Fix.  This became broken at some point.
 		//echo "<p>obj_base DatabaseObj->Get() \$ItemName: |{$ItemName}|</p>";
 		if (!$this->CheckUserAccess()) { return; }
 		//$Reflection = new ReflectionClass($this->$ItemName);    // Fix.  Continue this.
@@ -107,11 +112,11 @@ class DatabaseObj {
 	
 	// Provides abstraction for universal db conection across various implementations.
 	protected function db_connect() {
-		$DbHost = this->DbHost;
-		$DbName = this->DbName;
-		$DbUser = this->DbUser;
-		$DbPass = this->DbPass;
-		$DbType = this->DbType;
+		$DbHost = $this->DbHost;
+		$DbName = $this->DbName;
+		$DbUser = $this->DbUser;
+		$DbPass = $this->DbPass;
+		$DbType = $this->DbType;
 		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to class function and extend from base object.
 			$this->DbServerRsc = pg_connect("host={$DbHost} dbname={$DbName} user={$DbUser} password={$DbPass}");
 		} else if ($DbType == 'mysql') {
@@ -133,9 +138,9 @@ class DatabaseObj {
 	// Provides abstraction for universal db query across various implementations.
 	protected function db_query($Query, $SrvRsc=0) {
 		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
-		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$SrvRsc = $this->DbServerRsc = pg_query($SrvRsc, $Query);
-		} else if ($DbType == 'mysql') {
+		} else if ($this->DbType == 'mysql') {
 			$SrvRsc = $this->DbServerRsc = mysql_query($Query, $SrvRsc);
 		}
 		return $SrvRsc;
@@ -145,9 +150,9 @@ class DatabaseObj {
 	// Provides abstraction for universal fetch_array functionality across various implementations.
 	protected function db_fetch_array($SrvRsc=0) {
 		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
-		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$NumRows = pg_fetch_array($SrvRsc);
-		} else if ($DbType == 'mysql') {
+		} else if ($this->DbType == 'mysql') {
 			$NumRows = mysql_fetch_array($SrvRsc);
 		}
 		return $NumRows;
@@ -157,9 +162,9 @@ class DatabaseObj {
 	// Provides abstraction for universal num_rows functionality across various implementations.
 	protected function db_num_rows($SrvRsc=0) {
 		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
-		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$NumRows = pg_num_rows($SrvRsc);
-		} else if ($DbType == 'mysql') {
+		} else if ($this->DbType == 'mysql') {
 			$NumRows = mysql_num_rows($SrvRsc);
 		}
 		return $NumRows;
@@ -169,9 +174,9 @@ class DatabaseObj {
 	// Provides abstraction for universal fetch_row functionality across various implementations.
 	protected function db_fetch_row($SrvRsc=0) {
 		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
-		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$NumRows = pg_fetch_row($SrvRsc);
-		} else if ($DbType == 'mysql') {
+		} else if ($this->DbType == 'mysql') {
 			$NumRows = mysql_fetch_row($SrvRsc);
 		}
 		return $NumRows;
@@ -181,9 +186,9 @@ class DatabaseObj {
 	// Provides abstraction for universal error functionality across various implementations.
 	protected function db_error($SrvRsc=0) {
 		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
-		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$NumRows = pg_last_error($SrvRsc);
-		} else if ($DbType == 'mysql') {
+		} else if ($this->DbType == 'mysql') {
 			$NumRows = mysql_error($SrvRsc);
 		}
 		return $NumRows;
@@ -202,7 +207,7 @@ class DatabaseObj {
 	
 	// Checks to see whether the current user has access to this table by returning 1, or not by returning 0. Tables listed in Table_pri are restricted, and UserIDs referenced to them in User_Table_ref are allowed access.
 	function CheckUserAccess($TableName=0) {
-		return 1;  // Fix!!
+		return 1;  // Fix!  Identify best standard for checking authentication.
 		
 		if (!$SrvRsc = $this->SrvRsc) { return; }
 		$UserID = 2;  // Fix!! GetUserID($this->DbName, $this->DbHost);  // Fix. Use without a second CheckUserAccess() call.
@@ -227,10 +232,10 @@ class DatabaseObj {
 
 
 	// Used to connect to the database.
-	function DbConnect($DbName=0, $DbHost=0, $DbUser=0, $DbPass=0, $Echo=0) {
+	function DbConnect($Echo=0) {
 		if ($Echo) { echo "<p>DatabaseObj->DbConnect() \$DbName |{$DbName}|, \$DbHost |{$DbHost}|, \$DbUser |{$DbUser}|, \$DbPass |{$DbPass}|</p>"; }
-		if (!$DbPass) {
-			$LoginArray = $this->GetLoginInfo($DbName, $DbHost, $DbUser, $Echo);
+		if (!$this->DbPass) {
+			$LoginArray = $this->GetLoginInfo($Echo);
 			if ($LoginArray && is_array($LoginArray)) {
 				list($DbName,$DbHost,$DbUser,$DbPass) = $LoginArray;
 				if ($Echo) { echo "<p>DatabaseObj->DbConnect() Successfully obtained login info:  \$DbName |{$DbName}|, \$DbHost |{$DbHost}|, \$DbUser |{$DbUser}|</p>"; }
@@ -254,11 +259,11 @@ class DatabaseObj {
 	
 	
 	// Returns a 1D array in the form array($DbUser, $DbPass). The purpose is to keep the login info out of session vars for security. Better solution?
-	private function GetLoginInfo($DbName=0, $DbHost=0, $DbUser=0, $Echo=0) {  // Fix! To incorporate user automation...
-		if ($LoginArray = $this->GetLoginFile($DbName, $DbHost, $DbUser, $Echo)) {  // Checks for file first. Fix?
+	private function GetLoginInfo($Echo=0) {
+		if ($LoginArray = $this->GetLoginFile($Echo)) {  // Checks for file first. Fix?
 			if ($Echo) { echo "<p>DatabaseObj->GetLoginInfo() called from File, \$LoginArray: |".HtmlArray($LoginArray)."|</p>"; }
 			return $LoginArray;
-		} else if ($LoginArray = $this->GetLoginFromDb($DbName, $DbHost, $DbUser)) {  // Checks for Db records for this db. Fix?
+		} else if ($LoginArray = $this->GetLoginFromDb()) {  // Checks for Db records for this db. Fix?
 			//echo "<p>DatabaseObj->GetLoginInfo() called from DB, \$LoginArray: |".HtmlArray($LoginArray)."|</p>";
 			return $LoginArray;
 		} else if ($LoginArray = $this->GetLoginDefault()) {  // If all else fails. Fix?
@@ -269,7 +274,9 @@ class DatabaseObj {
 	
 	
 	// Chooses the relevant file for login info and returns a 1D array in the form array($DbName, $DbHost, $DbUser, $DbPass).
-	private function GetLoginFile($DbName=0, $DbHost=0, $DbUser=0, $Echo=0) {  // Fix.  This whole set of functionality needs re-worked.
+	private function GetLoginFile($Echo=0) {  // Fix.  This whole set of functionality needs re-worked.
+		$DbHost = $this->DbHost;
+		$DbName = $this->DbName;
 		if ($Echo) { echo "<p>DatabaseObj->GetLoginFile() \$DbName:|{$DbName}|, \$DbHost:|{$DbHost}|, \$DbUser:|{$DbUser}|</p>\n"; }
 		if (!$DbName) { $DbName = 'default'; }  // Fix. There are many better ways of doing this.
 		if ($DbHost && ($DbHost != 'localhost')) {  // Fix. This has mixed purposes since the structure revision.
@@ -300,12 +307,21 @@ class DatabaseObj {
 			echo "<p>DatabaseObj->GetLoginFile() \$DbFile |{$DbFile}| does not exist at |{$FilePath}| nor |{$GlobalCheck}|.</p>\n";  // Fix? Require $Echo? 
 			return;
 		}
-		if ($Redirect) {  // If the login file contains a $Redirect var to use login info for another Database.
+		if ($Redirect) {  // Fix.  If the login file contains a $Redirect var to use login info for another Database.
 			if ($Echo) { EchoV(array('$Redirect'=>$Redirect, '$DbName'=>$DbName, '$DbHost'=>$DbHost, '$DbUser'=>$DbUser, '$DbPass'=>$DbPass), 'REDIRECT detected after loading file'); }  // Fix.
-			return $this->GetLoginFile($Redirect, $DbHost, $DbUser);  // Fix. Block infinite recursion, errorcheck. // Fix? May be more confusing/dangerous than it's worth?
+			$this->DbHost = $DbHost;
+			$this->DbName = $DbName;
+			return $this->GetLoginFile();  // Fix. Block infinite recursion, errorcheck. // Fix? May be more confusing/dangerous than it's worth?
 		}
 		if ($Echo) { EchoV(array('$DbName'=>$DbName, '$DbHost'=>$DbHost, '$DbUser'=>$DbUser, '$DbPass'=>$DbPass), 'After loading file'); }  // Fix.
-		return ($DbUser && $DbPass) ? (array($DbName, $DbHost, $DbUser, $DbPass)) : (0);
+		if ($DbUser && $DbPass) {  // Fix. Make more effective.
+			if ($DbHost) { $this->DbHost = $DbHost; }
+			if ($DbName) { $this->DbName = $DbName; }
+			if ($DbUser) { $this->DbUser = $DbUser; }
+			if ($DbPass) { $this->DbPass = $DbPass; }
+			if ($DbType) { $this->DbType = $DbType; }
+			return 1;
+		}
 	}
 	
 	
@@ -883,6 +899,9 @@ class DatabaseObj {
 		//echo "<p>DatabaseObj.php InsertQuery()  \$ItemArray: " . HtmlArray($ItemArray) . "</p>\n";
 		$Query = "INSERT INTO {$TableName} ({$FieldString}) VALUES ({$DataString})"; 
 		if ($Echo) { echo "<p>DatabaseObj->InsertQuery() \$Query: |{$Query}|</p>\n"; }
+		if () {
+			$Query .= 'RETURNING '.$this->GetKey($TableName);
+		}
 		$Result = $this->db_query($Query, $this->SrvRsc) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . db_error());  //  . EchoV());
 		$NewID = mysql_insert_id();  // Fix! db-specific queries.  Postgres doesn't support direct way of doing this.
 		//SetDatabaseObj($this->Name, $this->DbHost);

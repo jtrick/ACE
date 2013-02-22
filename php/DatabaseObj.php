@@ -142,6 +142,54 @@ class DatabaseObj {
 	}
 	
 	
+	// Provides abstraction for universal fetch_array functionality across various implementations.
+	protected function db_fetch_array($SrvRsc=0) {
+		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$NumRows = pg_fetch_array($SrvRsc);
+		} else if ($DbType == 'mysql') {
+			$NumRows = mysql_fetch_array($SrvRsc);
+		}
+		return $NumRows;
+	}
+	
+
+	// Provides abstraction for universal num_rows functionality across various implementations.
+	protected function db_num_rows($SrvRsc=0) {
+		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$NumRows = pg_num_rows($SrvRsc);
+		} else if ($DbType == 'mysql') {
+			$NumRows = mysql_num_rows($SrvRsc);
+		}
+		return $NumRows;
+	}
+	
+
+	// Provides abstraction for universal fetch_row functionality across various implementations.
+	protected function db_fetch_row($SrvRsc=0) {
+		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$NumRows = pg_fetch_row($SrvRsc);
+		} else if ($DbType == 'mysql') {
+			$NumRows = mysql_fetch_row($SrvRsc);
+		}
+		return $NumRows;
+	}
+	
+	
+	// Provides abstraction for universal error functionality across various implementations.
+	protected function db_error($SrvRsc=0) {
+		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$NumRows = pg_last_error($SrvRsc);
+		} else if ($DbType == 'mysql') {
+			$NumRows = mysql_error($SrvRsc);
+		}
+		return $NumRows;
+	}
+	
+	
 	// Login and Access Functions:  /////////////////
 
 
@@ -166,15 +214,15 @@ class DatabaseObj {
 		
 		$Result = $this->db_query("SHOW TABLES LIKE 'Table_pri'", $SrvRsc);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$Result: |{$Result}|, \$SrvRsc: |{$SrvRsc}|</p>";
-		if (!mysql_num_rows($Result)) { return 1; }
+		if (!db_num_rows($Result)) { return 1; }
 		
 		$Query = "SELECT TableID FROM Table_pri WHERE Name = '{$TableName}'";
 		$Result = $this->db_query($Query, $this->SrvRsc);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$Result: |{$Result}|, \$ItemName: |{$ItemName}|</p>";
-		list($TableID) = mysql_fetch_row($Result);
+		list($TableID) = db_fetch_row($Result);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$TableID: |{$TableID}|</p>";
 		if (!$TableID) { return 1; }
-		if (mysql_num_rows($this->db_query("SELECT * FROM User_Table_ref WHERE UserID = '{$UserID}' AND TableID = '{$UserID}'", $this->SrvRsc))) { return 1; }
+		if (db_num_rows($this->db_query("SELECT * FROM User_Table_ref WHERE UserID = '{$UserID}' AND TableID = '{$UserID}'", $this->SrvRsc))) { return 1; }
 	}
 
 
@@ -285,8 +333,8 @@ class DatabaseObj {
 	
 	// Returns a 1D Array of all Dbs on this host (For this user).
 	private function GetDbList($Echo=0) {
-		$DbListRsc = mysql_query('SHOW DATABASES');  // mysql_list_dbs();
-		while ($DbRow = mysql_fetch_array($DbListRsc)) {
+		$DbListRsc = db_query('SHOW DATABASES');
+		while ($DbRow = db_fetch_array($DbListRsc)) {
 			$DbName = $DbRow['Database'];
 			$DbList[] = $DbName;
 		}
@@ -313,8 +361,8 @@ class DatabaseObj {
 		if (!$this->CheckUserAccess()) { return; }  // Fix. Security, Notification
 		if (!$TableName = $this->FilterTableString($TableName)) { return; }  // Fix. Notification, Error handling.
 		$Query = "SHOW TABLES LIKE '{$TableName}'";
-		$Result = mysql_query($Query, $this->SrvRsc);
-		$TableCheck = mysql_num_rows($Result);
+		$Result = db_query($Query, $this->SrvRsc);
+		$TableCheck = db_num_rows($Result);
 		if ($Echo) { echo "<p>DatabaseObj->CheckTable() \$Query: |{$Query}|, \$Result: |{$Result}|, \$TableCheck: |{$TableCheck}|</p>\n"; }
 		return ($TableCheck) ? (1) : (0);
 	}
@@ -333,10 +381,9 @@ class DatabaseObj {
 		$DbName = $this->DbName;
 		$Query = "SHOW TABLES"; //  FROM '{$DbName}'";  
 		$SrvRsc = $this->SrvRsc;
-		$Result = mysql_query($Query, $SrvRsc);
-		//$Result = mysql_list_tables($DbName);  // Depreciated command.
+		$Result = db_query($Query, $SrvRsc);
 		if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListTables() \$Query: |{$Query}|, \$SrvRsc: |{$SrvRsc}|, \$Result: |{$Result}|</p>\n"; }
-		while (list($ThisTable) = mysql_fetch_row($Result)) {
+		while (list($ThisTable) = db_fetch_row($Result)) {
 			$TableList[] = $ThisTable;
 		}
 		if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListTables() \$TableList: |".HtmlArray($TableList)."|</p>\n"; }
@@ -435,8 +482,8 @@ class DatabaseObj {
 	private function TableStruct($TableName) {
 		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant.
 		$Query = "SHOW COLUMNS FROM {$TableName}";
-		$Result = mysql_query($Query, $this->SrvRsc);
-		while ($Row = mysql_fetch_array($Result, MYSQL_ASSOC)) { $TableArray[] = $Row; }
+		$Result = db_query($Query, $this->SrvRsc);
+		while ($Row = db_fetch_array($Result, MYSQL_ASSOC)) { $TableArray[] = $Row; }
 		//echo "<p>DatabaseObj->TableStruct() \$TableArray: |".HtmlArray($TableArray)."|</p>\n";
 		return $TableArray;
 	}
@@ -447,9 +494,9 @@ class DatabaseObj {
 		//echo "<p>db_obj.php DatabaseObj->ListFields() \$TableName: |".HtmlArray($TableName)."|</p>\n";
 		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant.
 		$Query = "SHOW COLUMNS FROM {$TableName}";
-		$Result = mysql_query($Query, $this->SrvRsc) or die ('Error in DatabaseObj->ListFields(): '.mysql_error()."</p>\n");
-		if (mysql_num_rows($Result) > 0) {
-			while ($Row = mysql_fetch_array($Result)) {
+		$Result = db_query($Query, $this->SrvRsc) or die ('Error in DatabaseObj->ListFields(): '.db_error()."</p>\n");
+		if (db_num_rows($Result) > 0) {
+			while ($Row = db_fetch_array($Result)) {
 				if ($RowNum++ >= $SkipFields) { $FieldList[] = $Row['Field']; }
 				//echo "<p>db_obj.php DatabaseObj->ListFields() \$Row: |".HtmlArray($Row)."|</p>\n";
 			}
@@ -462,8 +509,8 @@ class DatabaseObj {
 	function CheckField($TableName, $FieldName) {
 		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant.
 		$Query = "SHOW COLUMNS FROM {$TableName} LIKE '{$FieldName}'";
-		$Result = mysql_query($Query, $this->SrvRsc);  //  or die ('Error in DatabaseObj->CheckField(): '.mysql_error()."</p>\n");
-		$NumRows = mysql_num_rows($Result);
+		$Result = db_query($Query, $this->SrvRsc);  //  or die ('Error in DatabaseObj->CheckField(): '.db_error()."</p>\n");
+		$NumRows = db_num_rows($Result);
 		//echo "<p>DatabaseObj->CheckField() \$TableName: {$TableName}, \$FieldName: {$FieldName}, \$NumRows: {$NumRows}</p>";
 		return (($NumRows > 0)?(true):(false));
 	}
@@ -527,8 +574,8 @@ class DatabaseObj {
 	function GetKey($TableName) {
 		//echo "<p>db_obj.php DatabaseObj->GetKey() \$ThisTable: |{$ThisTable}|</p>\n"
 		$Query = "SHOW INDEX FROM {$TableName}";
-		if (!$Result = mysql_query($Query, $this->SrvRsc)) { return; }
-		while ($ThisRow = mysql_fetch_row($Result)) {
+		if (!$Result = db_query($Query, $this->SrvRsc)) { return; }
+		while ($ThisRow = db_fetch_row($Result)) {
 			//echo "<p>db_obj.php DatabaseObj->GetKey() \$ThisRow: |".HtmlArray($ThisRow)."|</p>\n";
 			if ($ThisRow[2] == 'PRIMARY') {
 				return $ThisRow[4];
@@ -549,7 +596,7 @@ class DatabaseObj {
 			return;
 		}
 		if (!$ArrayCtrl) { $ArrayCtrl = MYSQL_ASSOC; }  // MYSQL_BOTH; MYSQL_NUM;
-		while ($RowArray = mysql_fetch_array($Result, $ArrayCtrl)) { $QueryArray[] = $RowArray; }
+		while ($RowArray = db_fetch_array($Result, $ArrayCtrl)) { $QueryArray[] = $RowArray; }
 		if ($Echo) { echo "<p>DatabaseObj->Query() \$QueryArray: |".HtmlArray($QueryArray)."|</p>\n"; }
 		return $QueryArray;
 	}
@@ -670,7 +717,7 @@ class DatabaseObj {
 			return;
 		}
 		if (!$ArrayCtrl) { $ArrayCtrl = MYSQL_ASSOC; }  // MYSQL_BOTH; MYSQL_NUM;
-		while ($RowArray = mysql_fetch_array($Result, $ArrayCtrl)) {
+		while ($RowArray = db_fetch_array($Result, $ArrayCtrl)) {
 			if ($NumberOrdered || ($OrderString && !is_string($OrderString) && is_numeric($OrderString))) {
 				$NumberOrdered = true;
 				// $Echo = "Set from SelectQuery()";  // Fix!
@@ -788,7 +835,7 @@ class DatabaseObj {
 			return;
 		}
 		if (!$ArrayCtrl) { $ArrayCtrl = MYSQL_ASSOC; }  // MYSQL_ASSOC; MYSQL_BOTH; MYSQL_NUM;
-		while ($RowArray = mysql_fetch_array($Result, $ArrayCtrl)) { $QueryArray[] = $RowArray; }
+		while ($RowArray = db_fetch_array($Result, $ArrayCtrl)) { $QueryArray[] = $RowArray; }
 		if ($Echo) { echo "<p>DatabaseObj->MaxQuery() \$QueryArray: |".HtmlArray($QueryArray)."|</p>\n"; }	
 		if (!$FullReturn) { $QueryArray = $QueryArray[0][$MaxField]; }
 		return $QueryArray;
@@ -806,7 +853,7 @@ class DatabaseObj {
 
 		//echo "<p>db_obj.php DatabaseObj->QueryArray() \$Query: |{$Query}|</p>\n";
 		$Result = $this->db_query($Query, $this->SrvRsc);
-		while ($RowArray = mysql_fetch_array($Result, $ArrayCtrl)) {
+		while ($RowArray = db_fetch_array($Result, $ArrayCtrl)) {
 			$TableArray[] = $RowArray;
 			// if (count($TableArray) >= $CutOff) { break; }  // Fix? May want this...
 		}
@@ -833,11 +880,11 @@ class DatabaseObj {
 				//echo "<p>DatabaseObj->InsertQuery() \$SafeInsertString: |{$SafeInsertString}|, \$DataString: |{$DataString}|</p>\n";
 			}
 		$DataString = ltrim($DataString, ',');
-		//echo "<p>mysql_tools InsertQuery()  \$ItemArray: " . HtmlArray($ItemArray) . "</p>\n";
+		//echo "<p>DatabaseObj.php InsertQuery()  \$ItemArray: " . HtmlArray($ItemArray) . "</p>\n";
 		$Query = "INSERT INTO {$TableName} ({$FieldString}) VALUES ({$DataString})"; 
 		if ($Echo) { echo "<p>DatabaseObj->InsertQuery() \$Query: |{$Query}|</p>\n"; }
-		$Result = $this->db_query($Query, $this->SrvRsc) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . mysql_error());  //  . EchoV());
-		$NewID = mysql_insert_id();
+		$Result = $this->db_query($Query, $this->SrvRsc) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . db_error());  //  . EchoV());
+		$NewID = mysql_insert_id();  // Fix! db-specific queries.  Postgres doesn't support direct way of doing this.
 		//SetDatabaseObj($this->Name, $this->DbHost);
 		if ($Echo) { echo "<p>DatabaseObj->InsertQuery() \$NewID: |{$NewID}|</p>\n"; }
 		return $NewID;
@@ -995,7 +1042,7 @@ class DatabaseObj {
 	function GetRefEntry($ThisTable) {
 		$Query = "DESCRIBE {$ThisTable}";
 		if (!$Result = $this->db_query($Query, $this->SrvRsc)) { return; }
-		while ($ThisRow = mysql_fetch_row($Result)) { return $ThisRow[0]; }
+		while ($ThisRow = db_fetch_row($Result)) { return $ThisRow[0]; }
 		echo "<p>No Reference ID Field Found for {$ThisTable}</p>\n";  // Fix? Just delete this line?
 	}
 	
@@ -1047,9 +1094,9 @@ class DatabaseObj {
 		if ($Echo) {
 			EchoV(array('Result'=>$Result, 'NumDropped'=>$NumDropped));  
 			if (!$NumDropped) {
-				echo "<p>DatabaseObj->DropTable() Error Dropping table{$Multi} '{$TableString}'! Error: <font color=red>|".mysql_error($this->SrvRsc)."|</font></p>\n";
+				echo "<p>DatabaseObj->DropTable() Error Dropping table{$Multi} '{$TableString}'! Error: <font color=red>|".db_error($this->SrvRsc)."|</font></p>\n";
 			} else if ($NumDropped != $DropCount) {
-				echo "<p>DatabaseObj->DropTable() Error Dropping some tables: |{$MissedString}| ({$NumDropped} out of {$DropCount}) from intended |{$TableString}|. Error: <font color=red>|".mysql_error($this->SrvRsc)."|</font></p>\n";
+				echo "<p>DatabaseObj->DropTable() Error Dropping some tables: |{$MissedString}| ({$NumDropped} out of {$DropCount}) from intended |{$TableString}|. Error: <font color=red>|".db_error($this->SrvRsc)."|</font></p>\n";
 			} else {
 				echo "<p>DatabaseObj->DropTable() <font color=green>Successfully Dropped table{$Multi} |{$TableString}|</font>.  (\$NumDropped: {$NumDropped} out of {$DropCount}).</p>\n";
 			}
@@ -1098,7 +1145,7 @@ class DatabaseObj {
 				if ($this->CommandChecks(($Query.=';'), $Echo, $Force)) {
 					if (!$Result = $this->db_query($Query, $this->SrvRsc)) { 
 						$ErrorCount++;
-						if ($Echo) { echo "<font color=red>Error: ".mysql_error($this->SrvRsc)."<br>\n"; }
+						if ($Echo) { echo "<font color=red>Error: ".db_error($this->SrvRsc)."<br>\n"; }
 					} else {
 						if ($Echo) { echo "<font color=green>Successfully executed SQL query.<br>\n"; }
 						//$this->QueryFollowup($Query);  // Handle special-case administration for this query.

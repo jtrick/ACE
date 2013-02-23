@@ -57,8 +57,8 @@ class DatabaseObj {
 	
 	
 	
-	// Loads the database structure into the object abstraction of this form for useful access.
-	function LoadObj() {
+	// Loads the data structure into the object abstraction of this form for useful access.
+	public function LoadObj() {
 		return 1;  // Fix! Transition this into process for loading alternate types of data.
 		if (!$this->CheckUserAccess()) { return; }
 		$this->SortTables();
@@ -66,29 +66,34 @@ class DatabaseObj {
 		return 1;
 	}
 
-
-	// Returns the value associated with the object attribute $this->{"$ThisItem"} if applicable.
-	public function Get($ItemName) {  // Fix.  This became broken at some point.
-		//echo "<p>obj_base DatabaseObj->Get() \$ItemName: |{$ItemName}|</p>";
-		if (!$this->CheckUserAccess()) { return; }
-		//$Reflection = new ReflectionClass($this->$ItemName);    // Fix.  Continue this.
-		//if ($Reflection->isPrivate()) {    // Fix.  Continue this.
-		//	if (debug_backtrace()) {  // Fix.  Continue this.
-		//		
-		//	}
-		//}
-		$PublicArray = array('DbName', 'DbHost', 'Name', 'Description', 'DbName');
-		if (in_array($ItemName, $PublicArray)) { return; }  // Fix.  Error handling and message output.
-		$ThisItem = $this->{$ItemName};
-		//echo "<p>obj_base DatabaseObj->Get() {$ItemName}: |".HtmlArray($ThisItem)."|</p>";
-		return $ThisItem;
+	
+	
+	/////// Standardized DataBridge data interaction calls.  /////////////////////////
+	// See https://github.com/jtrick/DataBridge for details.
+	
+	
+	
+	// Standardized DataBridge data interaction call for db.get() function.  
+	public function get($ItemName) {
+		
 	}
 
 
-	// Sets and returns the value associated with the object attribute $this->{"$ThisItem"} if applicable.
-	private function Set($ThisItem=0, $NewValue) {
-		if (!$ThisItem || !$this->CheckUserAccess()) { return; }
-		return $this->{$ThisItem} = $NewValue;
+	// Standardized DataBridge data interaction call for db.set() function.
+	public function set($ItemName) {
+		
+	}
+	
+	
+	// Standardized DataBridge data interaction call for db.add() function.  
+	public function add($ItemName) {  // Fix? Can't use 'new'
+		
+	}
+
+
+	// Standardized DataBridge data interaction call for db.del() function.
+	public function del($ItemName) {
+		
 	}
 
 	
@@ -322,12 +327,6 @@ class DatabaseObj {
 		} else {
 			return TRUE;
 		}
-		if ($Redirect) {  // Fix.  If the login file contains a $Redirect var to use login info for another Database.
-			if ($Echo) { EchoV(array('$Redirect'=>$Redirect, '$DbName'=>$DbName, '$DbHost'=>$DbHost, '$DbUser'=>$DbUser, '$DbPass'=>$DbPass), 'REDIRECT detected after loading file'); }  // Fix.
-			$this->DbHost = $DbHost;
-			$this->DbName = $DbName;
-			return $this->GetLoginFile();  // Fix. Block infinite recursion, errorcheck. // Fix? May be more confusing/dangerous than it's worth?
-		}
 	}
 	
 	
@@ -379,6 +378,22 @@ class DatabaseObj {
 	// Database Structure Functions:  /////////////////
 	
 	
+	// Returns 2D arrays for each table in database.
+	function ShowTables($Echo=0) {
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$Query = 'SELECT * from "pg_tables" WHERE pg_tables.schemaname = \'public\''; // Fix.  Stupid, stupid syntax... Must be better way.
+		} else if ($this->DbType == 'mysql') {
+			$Query = "SHOW TABLES"; //  FROM '{$DbName}'";  
+		}
+		$Result = $this->db_query($Query, $this->SrvRsc);
+		while ($ThisRow = $this->db_fetch_array($Result)) {
+			$TableArray[] = $ThisRow;
+		}
+		if ($Echo) { EchoV(array('Query'=>$Query,'TableArray'=>$TableArray)); }
+		return $TableArray;
+	}
+	
+	
 	// Checks for the existence of Table $TableName in this DatabaseObj. Returns 1 or 0.
 	function CheckTable($TableName, $Echo=0) {
 		if (!$this->CheckUserAccess()) { return; }  // Fix. Security, Notification
@@ -402,12 +417,17 @@ class DatabaseObj {
 	function ListTables($Echo=0) {
 		if (!$this->CheckUserAccess()) { return; }
 		$DbName = $this->DbName;
-		$Query = "SHOW TABLES"; //  FROM '{$DbName}'";  
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$Query = 'SELECT "tablename" from "pg_tables" WHERE pg_tables.schemaname = \'public\''; // Fix.  Stupid, stupid syntax...
+		} else if ($this->DbType == 'mysql') {
+			$Query = "SHOW TABLES"; //  FROM '{$DbName}'";  
+		}
+		
 		$SrvRsc = $this->SrvRsc;
 		$Result = $this->db_query($Query, $SrvRsc);
 		if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListTables() \$Query: |{$Query}|, \$SrvRsc: |{$SrvRsc}|, \$Result: |{$Result}|</p>\n"; }
-		while (list($ThisTable) = $this->db_fetch_row($Result)) {
-			$TableList[] = $ThisTable;
+		while ($ThisRow = $this->db_fetch_array($Result)) {
+			$TableList[] = $ThisRow;
 		}
 		if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListTables() \$TableList: |".HtmlArray($TableList)."|</p>\n"; }
 		return $TableList;

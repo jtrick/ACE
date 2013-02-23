@@ -72,28 +72,33 @@ class DatabaseObj {
 	// See https://github.com/jtrick/DataBridge for details.
 	
 	
+	// Standardized DataBridge data interaction call for db.exe() function.  
+	public function exe($Arg, $Echo=0) {  // Fix? Seemed like a good universal call name.
+		$Arg = TranslateArg($Arg, $Echo);
+	}
+	
 	
 	// Standardized DataBridge data interaction call for db.get() function.  
-	public function get($ItemName) {
-		
+	public function get($Arg, $Echo=0) {
+		$Arg = TranslateArg($Arg, $Echo);
 	}
 
 
 	// Standardized DataBridge data interaction call for db.set() function.
-	public function set($ItemName) {
-		
+	public function set($Arg, $Echo=0) {
+		$Arg = TranslateArg($Arg, $Echo);
 	}
 	
 	
 	// Standardized DataBridge data interaction call for db.add() function.  
-	public function add($ItemName) {  // Fix? Can't use 'new'
-		
+	public function add($Arg, $Echo=0) {  // Fix? Can't use 'new'
+		$Arg = TranslateArg($Arg, $Echo);
 	}
-
-
+	
+	
 	// Standardized DataBridge data interaction call for db.del() function.
-	public function del($ItemName) {
-		
+	public function del($Arg, $Echo=0) {
+		$Arg = TranslateArg($Arg, $Echo);
 	}
 
 	
@@ -189,8 +194,17 @@ class DatabaseObj {
 	// Login and Access Functions:  /////////////////
 
 
+	// Translates function arguments from the many possible formats to the primary native one.
+	function TranslateArg($Arg, $Echo=0) {
+		if (!is_string($Arg) || (!$Mod=json_decode($Arg, TRUE))) {
+			$Mod = $Arg;
+		}
+		if ($Echo) { EchoV(array('Arg'=>$Arg,'Mod'=>$Mod,'Echo'=>$Echo)); }
+		return $Mod;
+	}
 	
 	
+	// Used during the initialization process to handle login and db selection items.
 	function TranslateDbItems($DbItems=0, $Echo=0) {
 		if ($Echo) { EchoV(array('$DbItems'=>$DbItems,'$Echo'=>$Echo)); }
 		if (is_string($DbItems)) {
@@ -378,31 +392,26 @@ class DatabaseObj {
 	// Database Structure Functions:  /////////////////
 	
 	
-	// Returns 2D arrays for each table in database.
-	function ShowTables($Echo=0) {
+	// Returns a 1D Array of all table names in this db.
+	function ListTables($Echo=0) {  // Fix? Check speed against specifying single row item during actual query.
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
-			$Query = 'SELECT * from "pg_tables" WHERE pg_tables.schemaname = \'public\''; // Fix.  Stupid, stupid syntax... Must be better way.
+			$Query = 'SELECT "tablename" from "pg_tables" WHERE "schemaname" = \'public\''; // Fix.  Stupid, stupid syntax... Must be better way?
 		} else if ($this->DbType == 'mysql') {
 			$Query = "SHOW TABLES"; //  FROM '{$DbName}'";  
 		}
 		$Result = $this->db_query($Query, $this->SrvRsc);
-		while ($ThisRow = $this->db_fetch_array($Result)) {
-			$TableArray[] = $ThisRow;
+		while ($ThisRow = $this->db_fetch_row($Result)) {
+			$TableArray[] = $ThisRow[0];
 		}
 		if ($Echo) { EchoV(array('Query'=>$Query,'TableArray'=>$TableArray)); }
 		return $TableArray;
 	}
 	
 	
-	// Checks for the existence of Table $TableName in this DatabaseObj. Returns 1 or 0.
+	// Checks for the existence of Table $TableName in this DatabaseObj. Returns TRUE or FALSE.
 	function CheckTable($TableName, $Echo=0) {
-		if (!$this->CheckUserAccess()) { return; }  // Fix. Security, Notification
-		if (!$TableName = $this->FilterTableString($TableName)) { return; }  // Fix. Notification, Error handling.
-		$Query = "SHOW TABLES LIKE '{$TableName}'";
-		$Result = $this->db_query($Query, $this->SrvRsc);
-		$TableCheck = db_num_rows($Result);
-		if ($Echo) { echo "<p>DatabaseObj->CheckTable() \$Query: |{$Query}|, \$Result: |{$Result}|, \$TableCheck: |{$TableCheck}|</p>\n"; }
-		return ($TableCheck) ? (1) : (0);
+		if (!$TableArray=$this->ListTables()) { return; }
+		return (array_key_exists($TableName, $TableArray)) ? (TRUE) : (FALSE);
 	}
 
 
@@ -413,60 +422,6 @@ class DatabaseObj {
 	}
 	
 	
-	// Returns a 1D Array of all table names in this db.
-	function ListTables($Echo=0) {
-		if (!$this->CheckUserAccess()) { return; }
-		$DbName = $this->DbName;
-		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
-			$Query = 'SELECT "tablename" from "pg_tables" WHERE pg_tables.schemaname = \'public\''; // Fix.  Stupid, stupid syntax...
-		} else if ($this->DbType == 'mysql') {
-			$Query = "SHOW TABLES"; //  FROM '{$DbName}'";  
-		}
-		
-		$SrvRsc = $this->SrvRsc;
-		$Result = $this->db_query($Query, $SrvRsc);
-		if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListTables() \$Query: |{$Query}|, \$SrvRsc: |{$SrvRsc}|, \$Result: |{$Result}|</p>\n"; }
-		while ($ThisRow = $this->db_fetch_array($Result)) {
-			$TableList[] = $ThisRow;
-		}
-		if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListTables() \$TableList: |".HtmlArray($TableList)."|</p>\n"; }
-		return $TableList;
-	}
-	
-	
-	// Depreciated, now acts directly on db for this info.  Sorts all database tables into their respective sub-lists.
-	private function SortTables($Echo=0) {
-		$this->PriList = array();
-		$this->RefList = array(array(), array());
-		$this->TypList = array();
-		if (!$TableList = $this->TableList = $this->ListTables()) { return; }  // Fix? May want to do something on failure.
-		
-		foreach($TableList as $ThisName) {
-			$NameArray = explode('_', $ThisName);
-			$Tag = $NameArray[(count($NameArray)-1)];
-			//echo "<p>DbObj.php DatabaseObj->SortTables() \$NameArray: |".HtmlArray($NameArray)."|, \$Tag: |{$Tag}|</p>\n";
-			
-			if ($Tag == 'pri') {
-				$this->PriList[] = $NameArray[0];
-			} else if ($Tag == 'ref') {
-				$this->RefList[0][] = $NameArray[0];
-				$this->RefList[1][] = $NameArray[1];
-			} else if ($Tag == 'lnk') {
-				$this->LnkList[0][] = $NameArray[0];
-				$this->LnkList[1][] = $NameArray[1];
-			} else if ($Tag == 'typ') {
-				$this->TypList[] = $NameArray[0];
-			} else if ($Tag == 'log') {
-				$this->LogList[] = $NameArray[0];
-			} else {
-				$Remaining[] = $ThisName;
-			}
-			$this->TableList[$ThisName] = $this->ListFields($ThisName);
-		}
-		if ($Echo) { echo "<p>DbObj.php DatabaseObj->SortTables() \$this: |".HtmlArray($this)."|</p>\n"; }
-	}
-		 
-		 
 	// Checks for the existence of $TableName in this DatabaseObj and its validity as a _ref table. Returns 1 or null.
 	private function CheckRefTable($TableName) {
 		if (!$this->CheckTable($TableName)) { return; }

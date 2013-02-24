@@ -18,28 +18,32 @@ class DatabaseObj {
 		//echo "<p>DatabaseObj->DatabaseObj() \$this: |".HtmlArray($this)."|</p>";
 	}
 	
-	var $ThisID;  // The ID for this Database, if applicable. // Fix. Should use an aceID for this.
-	var $IsLoaded;  // Bool, indicates whether this Database loaded successfully or not.
-	var $SrvRsc;  // The resource link used to access this database on the server.
-	var $DbType;  // The type of db represented by this object. Can be 'mysql', 'postgres', etc.
-	var $DbName;  // The name of the database to load objects from.
-	var $DbHost;  // The host location of this database.
-	var $Name;  // The name used to summon this DatabaseObj from GetDatabaseObj() and by file.
-	var $Description;  // The Description property for this object.
-	var $Value;  // The overall Value rating for this object.
-	var $ObjSize;  // The Size of this object, in bytes.  // Fix?
+	private $ThisID;  // The ID for this Database, if applicable. // Fix. Should use an aceID for this.
+	private $IsLoaded;  // Bool, indicates whether this Database loaded successfully or not.
+	private $SrvRsc;  // The resource link used to access this database on the server.
+	private $DbType;  // The type of db represented by this object. Can be 'mysql', 'postgres', etc.
+	private $DbName;  // The name of the database to load objects from.
+	private $DbHost;  // The host location of this database.
+	private $Name;  // The name used to summon this DatabaseObj from GetDatabaseObj() and by file.
+	private $Description;  // The Description property for this object.
+	private $Value;  // The overall Value rating for this object.
+	private $ObjSize;  // The Size of this object, in bytes.  // Fix?
 
-	var $RemainingArray;  // An array to store excess items passed through InsertQuery() in the form array('$TableName'=>array($RemainingItem1=>$Value, $RemainingItem2=>$Value)).  // Fix? Seems a little convoluted, may be a better way?  Wanted to pass by reference in the function itself but was not possible prior to php5.
-	var $SqlQue;  // Array used in dynamic query creation to store additional parameters to be added at the end of processes carried out by other functions.
-	var $SqlOptions;  // String used for specific options to be added to the end of a query, outside of the containing command parentheses.
+	private $RemainingArray;  // An array to store excess items passed through InsertQuery() in the form array('$TableName'=>array($RemainingItem1=>$Value, $RemainingItem2=>$Value)).  // Fix? Seems a little convoluted, may be a better way?  Wanted to pass by reference in the function itself but was not possible prior to php5.
+	private $SqlQue;  // Array used in dynamic query creation to store additional parameters to be added at the end of processes carried out by other functions.
+	private $SqlOptions;  // String used for specific options to be added to the end of a query, outside of the containing command parentheses.
 	
-	var $TableList;  // All tables contained int this database, in full name form.
-	var $PriList;  // A list of all segmented _pri tables in this database, in the form array('RootName').
-	var $RefList;  // A referenced list of all segmented _ref tables in the form array(array('PriRoot'), array('RefRoot')) where items in the same slot in the array are associated with each other.
-	var $LnkList;  // A referenced list of all segmented table names internally referencing other tables in the form array('PriRoot'->array('LnkRoot', 'LnkRoot'), 'PriRoot'->array('LnkRoot', 'LnkRoot')).
-	var $BadLnkList;  // Lists internal ID links with no corresponding _pri table root. array('ContainingTable'->array('UnrecognizedField', 'UnrecognizedField'), 'ContainingTable'->array('UnrecognizedField', 'UnrecognizedField')).
-	var $TypList;  // A list of all segmented _typ tables in this database, in the form array('TypName').
-	var $LogList;  // A list of all segmented _log tables in this database, in the form array('LogName').
+	private $TableList;  // All tables contained in this database, in full case-compliant name form.
+	private $TableArray;  // An associative array to all tables accessed during this database session, as array('TableName'=>array('Field1'[=>array(FieldData)], 'Field2', ...));
+	private $CurrentTable;  // The current or most recently accessed table.
+	private $CurrentField;  // The current or most recently accessed field in $CurrentTable.
+	
+	private $PriList;  // A list of all segmented _pri tables in this database, in the form array('RootName').
+	private $RefList;  // A referenced list of all segmented _ref tables in the form array(array('PriRoot'), array('RefRoot')) where items in the same slot in the array are associated with each other.
+	private $LnkList;  // A referenced list of all segmented table names internally referencing other tables in the form array('PriRoot'->array('LnkRoot', 'LnkRoot'), 'PriRoot'->array('LnkRoot', 'LnkRoot')).
+	private $BadLnkList;  // Lists internal ID links with no corresponding _pri table root. array('ContainingTable'->array('UnrecognizedField', 'UnrecognizedField'), 'ContainingTable'->array('UnrecognizedField', 'UnrecognizedField')).
+	private $TypList;  // A list of all segmented _typ tables in this database, in the form array('TypName').
+	private $LogList;  // A list of all segmented _log tables in this database, in the form array('LogName').
 
 
 	///////////  Integral Functions:  ///////////
@@ -114,30 +118,30 @@ class DatabaseObj {
 		$DbPass = $this->DbPass;
 		$DbType = $this->DbType;
 		if ($DbType == 'postgres') {  // Fix. Centralize the DbType to class function and extend from base object.
-			$this->DbServerRsc = pg_connect("host={$DbHost} dbname={$DbName} user={$DbUser} password={$DbPass}");
+			$SrvRsc = pg_connect("host={$DbHost} dbname={$DbName} user={$DbUser} password={$DbPass}");
 		} else if ($DbType == 'mysql') {
-			$this->DbServerRsc = mysql_connect($DbHost, $DbUser, $DbPass);
+			$SrvRsc = mysql_connect($DbHost, $DbUser, $DbPass);
 		}
 		if ($this->CheckDbUser()) {  // If db exists under this user
 			if ($DbType == 'mysql') {
-				mysql_select_db($DbName, $DbServerRsc);
+				mysql_select_db($DbName, $SrvRsc);
 				if ($Echo) { echo "<p>DatabaseObj->db_connect() Connected to database |{$DbHost}| on host \$DbHost |{$DbHost}| as user |{$DbUser}|</p>"; }
 			}
 		} else {
-			$this->DbServerRsc = null;
+			$SrvRsc = null;
 			echo "<p>DatabaseObj->db_connect() \$DbName |{$DbName}| is not available to \$DbUser |{$DbUser}|.</p>";
 		}
-		return $this->DbServerRsc;
+		return $SrvRsc;
 	}
 	
 	
 	// Provides abstraction for universal db query across various implementations.
 	protected function db_query($Query, $SrvRsc=0) {
-		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
-			$SrvRsc = $this->DbServerRsc = pg_query($SrvRsc, $Query);
+			$SrvRsc = pg_query($SrvRsc, $Query);
 		} else if ($this->DbType == 'mysql') {
-			$SrvRsc = $this->DbServerRsc = mysql_query($Query, $SrvRsc);
+			$SrvRsc = mysql_query($Query, $SrvRsc);
 		}
 		return $SrvRsc;
 	}
@@ -145,7 +149,7 @@ class DatabaseObj {
 	
 	// Provides abstraction for universal fetch_array functionality across various implementations.
 	protected function db_fetch_array($SrvRsc=0) {
-		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$NumRows = pg_fetch_array($SrvRsc);
 		} else if ($this->DbType == 'mysql') {
@@ -157,7 +161,7 @@ class DatabaseObj {
 
 	// Provides abstraction for universal num_rows functionality across various implementations.
 	protected function db_num_rows($SrvRsc=0) {
-		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$NumRows = pg_num_rows($SrvRsc);
 		} else if ($this->DbType == 'mysql') {
@@ -169,7 +173,7 @@ class DatabaseObj {
 
 	// Provides abstraction for universal fetch_row functionality across various implementations.
 	protected function db_fetch_row($SrvRsc=0) {
-		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$NumRows = pg_fetch_row($SrvRsc);
 		} else if ($this->DbType == 'mysql') {
@@ -181,7 +185,7 @@ class DatabaseObj {
 	
 	// Provides abstraction for universal error functionality across various implementations.
 	protected function db_error($SrvRsc=0) {
-		if (!$SrvRsc) { $SrvRsc = $this->DbServerRsc; }  // Fix? May want to only allow access to internal $this->DbServerRsc;
+		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$NumRows = pg_last_error($SrvRsc);
 		} else if ($this->DbType == 'mysql') {
@@ -277,14 +281,15 @@ class DatabaseObj {
 				return;
 			}
 		}
-		if ($DbServerRsc=$this->db_connect()) {
+		if ($SrvRsc=$this->db_connect()) {
+			$this->SrvRsc = $SrvRsc;
 			if ($Echo) { echo "<p>DatabaseObj->DbConnect() Successfully logged in on host \$DbHost |{$DbHost}| as user |{$DbUser}|</p>"; }
 		} else {
 			echo "<p>DatabaseObj->DbConnect() FAILED to login on \$DbHost |{$DbHost}| as \$DbUser |{$DbUser}| using this \$DbPass</p>";
 			return;  // Fix. Should probably specify bad connection.
 		}
 		//echo "<p>DatabaseObj->DbConnect() Logged into \$DbName |{$DbName}| on \$DbHost |{$DbHost}| as \$DbUser |{$DbUser}| with \$DbPass |{$DbPass}|</p>";
-		return $DbServerRsc ? TRUE : FALSE;
+		return $SrvRsc ? TRUE : FALSE;
 	}
 	
 	
@@ -394,6 +399,7 @@ class DatabaseObj {
 	
 	// Returns a 1D Array of all table names in this db.
 	function ListTables($Echo=0) {  // Fix? Check speed against specifying single row item during actual query.
+		if ($this->TableList) { return $this->TableList; }
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$Query = 'SELECT "tablename" from "pg_tables" WHERE "schemaname" = \'public\''; // Fix.  Stupid, stupid syntax... Must be better way?
 		} else if ($this->DbType == 'mysql') {
@@ -404,14 +410,15 @@ class DatabaseObj {
 			$TableArray[] = $ThisRow[0];
 		}
 		if ($Echo) { EchoV(array('Query'=>$Query,'TableArray'=>$TableArray)); }
-		return $TableArray;
+		return $this->TableList=$TableArray;
 	}
 	
 	
 	// Checks for the existence of Table $TableName in this DatabaseObj. Returns TRUE or FALSE.
 	function CheckTable($TableName, $Echo=0) {
-		if (!$TableArray=$this->ListTables()) { return; }
-		return (array_key_exists($TableName, $TableArray)) ? (TRUE) : (FALSE);
+		if (!$TableArray=$this->ListTables($Echo)) { return; }
+		//EchoV(array_key_exists($TableName, $TableArray), "array_key_exists($TableName, $TableArray)");
+		return (in_array($TableName, $TableArray)) ? (TRUE) : (FALSE);
 	}
 
 
@@ -683,17 +690,17 @@ class DatabaseObj {
 					$CompChar = '=';
 				}
 				$Value = ltrim($Value, '!<>= ');
-				$Query .= "{$FieldName} {$CompChar} '{$Value}'";
-				$OrderBy .= "{$FieldName}, ";
+				$Query .= "\"{$FieldName}\" {$CompChar} '{$Value}'";
+				$OrderBy .= "\"{$FieldName}\", ";
 			}
 			$OrderBy = ($OrderString && is_string($OrderString)) ? ($OrderString) : (rtrim($OrderBy, ', '));
 		} else if ((is_string($ItemArray) or is_numeric($ItemArray)) && $ItemArray != '*' && $ItemArray != '') {
 			if (!$ItemArray = $this->FilterFieldString($ItemArray)) { return; }  // Fix. Notification, Error handling.
 			$ItemArray = $this->FilterFieldString($ItemArray);
 			$FieldName = $this->GetKey($TableName);
-			$Query .= " WHERE {$FieldName} = '{$ItemArray}'";
+			$Query .= " WHERE \"{$FieldName}\" = '{$ItemArray}'";
 		} else {
-			$OrderBy = ($OrderString && is_string($OrderString)) ? ($OrderString) : ('');
+			$OrderBy = ($OrderString && is_string($OrderString)) ? ('"'.$OrderString.'"') : ('');
 		}
 		if ($OrderBy) { $Query .= " ORDER BY {$OrderBy}"; }
 		return $Query;
@@ -703,11 +710,11 @@ class DatabaseObj {
 	// Used to match queries with multiple parameters using a simple interface. $ItemArray is array('FieldName'=>'Value', 'FieldName'=>'Value') for all required fields in the query, returned ordered in the order they are passed. '<', '>', '<=', '>=' can be included at the beginning of the 'Value' portion of $ItemArray to do comparison operations. If other order is wanted, $OrderString is used directly as "ORDER BY {$OrderString}" and can include DESCENDING if desired; if -1 it will return a single row without the containing array, and any other number will return an array with that number of rows. $ItemArray can also be a single value to match with the primary key, or even null, 0, or '*' to return the entire table contents. $Echo can be used to echo the results of several aspects of the query as well as to echo $Echo itself to pass messages from calling functions. ArrayCtrl is used to specify the format of the returned array, as MYSQL_BOTH, MYSQL_NUM, or defaults to MYSQL_ASSOC. 
 	function SelectQuery($TableName, $ItemArray=0, $OrderString=0, $Echo=0, $ArrayCtrl=0) {
 		// if ($Echo) { echo "<p>DatabaseObj->SelectQuery() \$Echo: \$TableName: |{$TableName}|, \$ItemArray: |".HtmlArray($ItemArray)."|, \$OrderString: |{$OrderString}|, \$Echo: |{$Echo}|</p>\n"; }
-		if (!$this->CheckTable($TableName)) {
+		if (!$this->CheckTable($TableName, $Echo)) {
 			if ($Echo) { echo "<p>DatabaseObj->SelectQuery() CheckTable() failed for \$TableName |{$TableName}|.</p>\n"; }
 			return; 
 		}
-		$Query = "SELECT * FROM {$TableName}";
+		$Query = "SELECT * FROM \"{$TableName}\"";
 		$Query .= $this->ParseItemArray($ItemArray, $OrderString, $TableName);
 		if (!$Result = $this->db_query($Query, $this->SrvRsc)) {
 			if ($Echo) { EchoV(array('$Query'=>$Query), 'This Query Obtained no Result. Returning NULL.'); }

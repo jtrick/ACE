@@ -13,7 +13,8 @@ class DatabaseObj {
 		if (!$this->CheckUserAccess()) { return; }
 		if ($Echo) { echo "<p>DatabaseObj->DatabaseObj() \$DbName:|{$this->DbName}|, \$DbHost:|{$this->DbHost}|, \$DbUser:|{$this->DbUser}|, \$DbPass:|{$this->DbPass}|, \$DbType:|{$this->DbType}|</p>\n"; }
 		
-		if (!$this->DbConnect($Echo)) { return; }  // Fix. Should specify reason for error.	
+		if (!$this->DbConnect($Echo)) { return; }  // Fix. Should specify reason for error.
+		$this->TableArray = array();
 		$this->IsLoaded = (($this->LoadObj()) ? (true) : (false)); // Fix? Make more useful?
 		//echo "<p>DatabaseObj->DatabaseObj() \$this: |".HtmlArray($this)."|</p>";
 	}
@@ -136,8 +137,9 @@ class DatabaseObj {
 	
 	
 	// Provides abstraction for universal db query across various implementations.
-	protected function db_query($Query, $SrvRsc=0) {
-		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
+	public function db_query($Query, $Echo=0) {  // Fix!
+		$SrvRsc = $this->SrvRsc;
+		if ($Echo) { EchoV(array('Query'=>$Query,'SrvRsc'=>$SrvRsc)); }
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$SrvRsc = pg_query($SrvRsc, $Query);
 		} else if ($this->DbType == 'mysql') {
@@ -254,17 +256,17 @@ class DatabaseObj {
 		}
 		echo "<p>DatabaseObj->CheckUserAccess() \$this: |".HtmlArray($this)."|</p>";
 		
-		$Result = $this->db_query("SHOW TABLES LIKE 'Table_pri'", $SrvRsc);
+		$Result = $this->db_query("SHOW TABLES LIKE 'Table_pri'");
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$Result: |{$Result}|, \$SrvRsc: |{$SrvRsc}|</p>";
 		if (!db_num_rows($Result)) { return 1; }
 		
 		$Query = "SELECT TableID FROM Table_pri WHERE Name = '{$TableName}'";
-		$Result = $this->db_query($Query, $this->SrvRsc);
+		$Result = $this->db_query($Query);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$Result: |{$Result}|, \$ItemName: |{$ItemName}|</p>";
 		list($TableID) = $this->db_fetch_row($Result);
 		echo "<p>obj_base DatabaseObj->CheckUserAccess() \$TableID: |{$TableID}|</p>";
 		if (!$TableID) { return 1; }
-		if (db_num_rows($this->db_query("SELECT * FROM User_Table_ref WHERE UserID = '{$UserID}' AND TableID = '{$UserID}'", $this->SrvRsc))) { return 1; }
+		if (db_num_rows($this->db_query("SELECT * FROM User_Table_ref WHERE UserID = '{$UserID}' AND TableID = '{$UserID}'"))) { return 1; }
 	}
 
 
@@ -405,7 +407,7 @@ class DatabaseObj {
 		} else if ($this->DbType == 'mysql') {
 			$Query = "SHOW TABLES"; //  FROM '{$DbName}'";  
 		}
-		$Result = $this->db_query($Query, $this->SrvRsc);
+		$Result = $this->db_query($Query);
 		while ($ThisRow = $this->db_fetch_row($Result)) {
 			$TableArray[] = $ThisRow[0];
 		}
@@ -417,8 +419,9 @@ class DatabaseObj {
 	// Checks for the existence of Table $TableName in this DatabaseObj. Returns TRUE or FALSE.
 	function CheckTable($TableName, $Echo=0) {
 		if (!$TableArray=$this->ListTables($Echo)) { return; }
-		//EchoV(array_key_exists($TableName, $TableArray), "array_key_exists($TableName, $TableArray)");
-		return (in_array($TableName, $TableArray)) ? (TRUE) : (FALSE);
+		$Check = in_array($TableName, $TableArray);
+		if ($Echo) { EchoV('Table "'.$TableName.'" '.($Check?'DOES':'does NOT').' exist in this database.'); }
+		return $Check;
 	}
 
 
@@ -429,137 +432,60 @@ class DatabaseObj {
 	}
 	
 	
-	// Checks for the existence of $TableName in this DatabaseObj and its validity as a _ref table. Returns 1 or null.
-	private function CheckRefTable($TableName) {
-		if (!$this->CheckTable($TableName)) { return; }
-		if ($this->SplitTableName($TableName) != 'ref') { return; }
-		$TableArray = $this->TableStruct($TableName);
-		$RefCheck = 'int(10) unsigned';  // The required ID format for the DbObjs.
-		if ($TableArray[0]['Type'] == $RefCheck && $TableArray[1]['Type'] == $RefCheck && $TableArray[2]['Type'] == $RefCheck) { return 1; } // If the first 3 fields of the table are the correct ID format.
-	}
-	
-	
-	// Returns a 1D array of all table root names referenced with $TableRoot. $UpOrDown specifies whether the reference is to a higher (1, 'Up', or 'up') or lower hierarchial relationship, defaults to downward referencing.
-	private function ListRefRoots($TableRoot, $UpOrDown='Down', $Echo=0) { 
-		$RefTableArray = $this->RefList;
-		if ($Echo) { echo "<p>DatabaseObj.php DatabaseObj->ListRootRefs() \$TableRoot: |{$TableRoot}|, \$UpOrDown: |{$UpOrDown}|, \$RefTableArray: |".HtmlArray($RefTableArray)."|, \$Echo: |{$Echo}|</p>\n"; }
-		if (!is_array($RefTableArray) || !count($RefTableArray) || !is_array($RefTableArray[0]) || !count($RefTableArray[0])) { 
-			if ($Echo) { echo "<p>DatabaseObj.php DatabaseObj->ListRootRefs() \$this->RefList[0] not set.  No {$UpOrDown}ward references to name root {$TableRoot} in this DatabaseObj.</p>\n"; }
-			return; 
-		}
-		
-		if ($UpOrDown == 1 || $UpOrDown == 'Up' || $UpOrDown == 'up') {  // Looking for upward references.
-			if (!$KeyList = array_keys($RefTableArray[1], $TableRoot)) { 
-				if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListRootRefs() No upward references to name root {$TableRoot} in this DatabaseObj.</p>\n"; }
-				return; 
-			}
-			foreach($KeyList as $SlotNum) { $RefRootList[] = $RefTableArray[0][$SlotNum]; }
-		} else {  // Looking for downward references.
-			if (!$KeyList = array_keys($RefTableArray[0], $TableRoot)) { 
-				if ($Echo) { echo "<p>DatabaseObj.php DatabaseObj->ListRootRefs() No downward references from name root {$TableRoot} in this DatabaseObj.</p>\n"; }
-				return; 
-			}
-			foreach($KeyList as $SlotNum) { $RefRootList[] = $RefTableArray[1][$SlotNum]; }
-		}
-		
-		if ($Echo) { echo "<p>DatabaseObj.php DatabaseObj->ListRootRefs() \$TableRoot: |{$TableRoot}|, \$UpOrDown: |{$UpOrDown}|, \$RefRootList: |".HtmlArray($RefRootList)."|, \$Echo: |{$Echo}|</p>\n"; }
-		return $RefRootList;
-	}
-	
-	
-	// Returns all full table names that contain reference to $TableRoot. $UpOrDown specifies whether the reference is to a higher (1, 'Up', or 'up') or lower hierarchial relationship, defaults to downward referencing.
-	private function ListRefTables($TableRoot, $UpOrDown='Down', $Echo=0) {
-		if (!$RootList = $this->ListRefRoots($TableRoot, $UpOrDown, $Echo || !is_array($RootList))) { return; }
-		if ($UpOrDown == 1 || $UpOrDown == 'Up' || $UpOrDown == 'up') {
-			foreach($RootList as $RefRoot) { $TableList[] = "{$RefRoot}_{$TableRoot}_ref"; }
-		} else {
-			foreach($RootList as $RefRoot) { $TableList[] = "{$TableRoot}_{$RefRoot}_ref"; }
-		}
-		//echo "<p>DbObj.php DatabaseObj->ListRefTables() \$TableList: |".HtmlArray($TableList)."|</p>\n";
-		return $TableList;
-	}
-	
-	
 	// Table Structure Functions:  /////////////////
 	
 	
 	// Returns a 2D array with structure details for $TableName.
-	private function TableStruct($TableName) {
-		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant.
-		$Query = "SHOW COLUMNS FROM {$TableName}";
-		$Result = $this->db_query($Query, $this->SrvRsc);
+	private function TableStruct($TableName, $Echo=0) {
+		if (!$this->CheckTable($TableName)) { return; }
+		if (array_key_exists($TableName, $this->TableArray) && is_array($TableArray=$this->TableArray[$TableName])) { return $TableArray; }
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$Query = 'SELECT "tablename" from "columns" WHERE "table_name"=\''.$TableName.'\', "table_schema"=\'public\' ORDER BY "ordinal_position"';
+		} else if ($this->DbType == 'mysql') {
+			$Query = "SHOW COLUMNS FROM {$TableName}";
+		}
+		$Result = $this->db_query($Query);
 		while ($Row = $this->db_fetch_array($Result, MYSQL_ASSOC)) { $TableArray[] = $Row; }
-		//echo "<p>DatabaseObj->TableStruct() \$TableArray: |".HtmlArray($TableArray)."|</p>\n";
-		return $TableArray;
+		if ($Echo) { EchoV(array('Query'=>$Query,'TableArray'=>$TableArray)); }
+		return $this->TableArray[$TableName]=$TableArray;
 	}
 	
 	
-	// Returns a 1D of all fields in this table, in their column order.  $SkipFields is an integer that if set will return only fields following that number.
-	function ListFields($TableName, $SkipFields=0) {
-		//echo "<p>db_obj.php DatabaseObj->ListFields() \$TableName: |".HtmlArray($TableName)."|</p>\n";
-		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant.
-		$Query = "SHOW COLUMNS FROM {$TableName}";
-		$Result = $this->db_query($Query, $this->SrvRsc) or die ('Error in DatabaseObj->ListFields(): '.db_error()."</p>\n");
-		if (db_num_rows($Result) > 0) {
-			while ($Row = $this->db_fetch_array($Result)) {
-				if ($RowNum++ >= $SkipFields) { $FieldList[] = $Row['Field']; }
-				//echo "<p>db_obj.php DatabaseObj->ListFields() \$Row: |".HtmlArray($Row)."|</p>\n";
-			}
+	// Returns a 1D of all fields in this table, in their column order.
+	private function ListFields($TableName) {
+		if (!$TableArray=$this->TableStruct($TableName)) { return; }
+		foreach($TableArray as $FieldName=>$FieldProps) { $FieldList[]=$FieldName; }
 		return $FieldList;
-		}
 	}
 	
 	
 	// Returns true or false depending on whether $FieldName is a field in $TableName.
 	function CheckField($TableName, $FieldName) {
-		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant.
-		$Query = "SHOW COLUMNS FROM {$TableName} LIKE '{$FieldName}'";
-		$Result = $this->db_query($Query, $this->SrvRsc);  //  or die ('Error in DatabaseObj->CheckField(): '.db_error()."</p>\n");
-		$NumRows = db_num_rows($Result);
-		//echo "<p>DatabaseObj->CheckField() \$TableName: {$TableName}, \$FieldName: {$FieldName}, \$NumRows: {$NumRows}</p>";
-		return (($NumRows > 0)?(true):(false));
+		if (!$FieldList=$this->ListFields($TableName)) { return; }
+		return ((in_array($FieldName,$FieldList)) ? TRUE : FALSE);
 	}
 	
 	
-	// Goes through each table's structure to determine internal references to other table keys by "{$TableName}ID" and sorts them in $this->LnkList.
-	private function LoadLnkList($Echo=0) {
-		$TableList = $this->PriList;
-		if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() \$Echo: |{$Echo}|, \$TableList: |".HtmlArray($TableList)."|</p>\n"; }
-		foreach($TableList as $TableName) {
-			$FieldList = $this->ListFields("{$TableName}_pri");
-			if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() \$TableName: |{$TableName}|, \$FieldList: |".HtmlArray($FieldList)."|</p>\n"; }
-			foreach($FieldList as $FieldName) {
-				if (substr($FieldName, -2) == "ID" && $FieldName != "{$TableName}ID") {  // If this is an ID field, and not the table's primary key.
-					$FieldMod = rtrim($FieldName, "ID");  // Fix. This may strip either 'I' or 'D' in cases where it is not an exact match.
-					if (in_array($FieldMod, $TableList)) {
-						if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() Found \"{$FieldMod}\" in \$TableList</p>\n"; }
-						$this->LnkList[$FieldMod][] = $TableName;
-					} else {
-						$Found = 0;
-						foreach($TableList as $TableCheck) {
-							if ($StrLoc = strpos($FieldName, "{$TableCheck}ID") !== FALSE) {  // To include compounded names (as in ParentItemID or BeforeImageID, etc.)
-								if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() strpos() found \$TableCheck: |{$TableCheck}ID| in \$FieldName: |{$FieldName}| at \$StrLoc: |{$StrLoc}|</p>\n"; }
-								$this->LnkList[$TableCheck][] = $TableName;
-								$Found = 1;
-							}
-						}
-						if (!$Found) {
-							if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() Unrecognized \$FieldName: |\"{$FieldName}\"|</p>\n"; }
-							$this->BadLnkList[$TableName][] = $FieldName;
-							// Unrecognized ID Reference.
-						}
-					}
-				}
-			}
-		}
-		if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() \$this->LnkList: |".HtmlArray($this->LnkList)."|</p>\n"; }
+	// Returns the Primary Index Key for the table $ThisTable.
+	function GetKey($TableName) {
+		if (!$FieldName=$this->FieldSlotName($TableName)) { return; }
+		return $FieldName;  // Fix! Relies on table column order. Just quick hack, make this work effectively for Postgres.
+		
+		// $Query = "SHOW INDEX FROM {$TableName}";
+		// if (!$Result = $this->db_query($Query)) { return; }
+		// while ($ThisRow = $this->db_fetch_row($Result)) {
+			// //echo "<p>db_obj.php DatabaseObj->GetKey() \$ThisRow: |".HtmlArray($ThisRow)."|</p>\n";
+			// if ($ThisRow[2] == 'PRIMARY') {
+				// return $ThisRow[4];
+			// }
+		// }
 	}
 	
 	
 	// Returns the name of the field in $SlotNum location in the table column order. Defaults to 0, the first item.
 	private function FieldSlotName($TableName, $SlotNum=0) {
-		$TableArray = $this->ListFields($TableName);
-		return $TableArray[$SlotNum];
+		if ((!$FieldList=$this->ListFields($TableName)) || ($SlotNum>=count($FieldList))) { return; }
+		return $FieldList[$SlotNum];
 	}
 	
 	
@@ -575,28 +501,16 @@ class DatabaseObj {
 	}
 	
 	
-	// Returns the Primary Index Key for the table $ThisTable.
-	function GetKey($TableName) {
-		//echo "<p>db_obj.php DatabaseObj->GetKey() \$ThisTable: |{$ThisTable}|</p>\n"
-		$Query = "SHOW INDEX FROM {$TableName}";
-		if (!$Result = $this->db_query($Query, $this->SrvRsc)) { return; }
-		while ($ThisRow = $this->db_fetch_row($Result)) {
-			//echo "<p>db_obj.php DatabaseObj->GetKey() \$ThisRow: |".HtmlArray($ThisRow)."|</p>\n";
-			if ($ThisRow[2] == 'PRIMARY') {
-				return $ThisRow[4];
-			}
-		}
-	}
-	
 	
 	// Data Retrieval Functions:  /////////////////
+	
 	
 	
 	// Do NOT call directly; no security.  Used INTERNALLY to perform standard SQL queries on a DatabaseObj. 
 	private function Query($Query=0, $Echo=0, $ArrayCtrl=0) {  //  Fix! Implememt restrictions and security.
 		if (!$Query) { return; }
 		$Query = $this->FormatQuery($Query, $Echo);
-		if (!$Result = $this->$this->db_query($Query, $this->SrvRsc)) {
+		if (!$Result = $this->$this->db_query($Query)) {
 			if ($Echo) { echo "<p>DatabaseObj->Query() This Query Obtained no Result. Returning NULL.</p>\n"; }
 			return;
 		}
@@ -709,29 +623,21 @@ class DatabaseObj {
 	
 	// Used to match queries with multiple parameters using a simple interface. $ItemArray is array('FieldName'=>'Value', 'FieldName'=>'Value') for all required fields in the query, returned ordered in the order they are passed. '<', '>', '<=', '>=' can be included at the beginning of the 'Value' portion of $ItemArray to do comparison operations. If other order is wanted, $OrderString is used directly as "ORDER BY {$OrderString}" and can include DESCENDING if desired; if -1 it will return a single row without the containing array, and any other number will return an array with that number of rows. $ItemArray can also be a single value to match with the primary key, or even null, 0, or '*' to return the entire table contents. $Echo can be used to echo the results of several aspects of the query as well as to echo $Echo itself to pass messages from calling functions. ArrayCtrl is used to specify the format of the returned array, as MYSQL_BOTH, MYSQL_NUM, or defaults to MYSQL_ASSOC. 
 	function SelectQuery($TableName, $ItemArray=0, $OrderString=0, $Echo=0, $ArrayCtrl=0) {
-		// if ($Echo) { echo "<p>DatabaseObj->SelectQuery() \$Echo: \$TableName: |{$TableName}|, \$ItemArray: |".HtmlArray($ItemArray)."|, \$OrderString: |{$OrderString}|, \$Echo: |{$Echo}|</p>\n"; }
-		if (!$this->CheckTable($TableName, $Echo)) {
-			if ($Echo) { echo "<p>DatabaseObj->SelectQuery() CheckTable() failed for \$TableName |{$TableName}|.</p>\n"; }
-			return; 
-		}
+		if (!$this->CheckTable($TableName, $Echo)) { return; }
 		$Query = "SELECT * FROM \"{$TableName}\"";
 		$Query .= $this->ParseItemArray($ItemArray, $OrderString, $TableName);
-		if (!$Result = $this->db_query($Query, $this->SrvRsc)) {
+		if (!$Result = $this->db_query($Query, $Echo)) {
 			if ($Echo) { EchoV(array('$Query'=>$Query), 'This Query Obtained no Result. Returning NULL.'); }
-			//if ($Echo) { echo "<p>DatabaseObj->SelectQuery() This Query Obtained no Result. Returning NULL.</p>\n"; }
 			return;
 		}
 		if (!$ArrayCtrl) { $ArrayCtrl = MYSQL_ASSOC; }  // MYSQL_BOTH; MYSQL_NUM;
 		while ($RowArray = $this->db_fetch_array($Result, $ArrayCtrl)) {
 			if ($NumberOrdered || ($OrderString && !is_string($OrderString) && is_numeric($OrderString))) {
 				$NumberOrdered = true;
-				// $Echo = "Set from SelectQuery()";  // Fix!
-				// if ($Echo) { EchoV(array('$OrderString'=>$OrderString)); }
 				if ($OrderString == -1) { return $RowArray; }
 				if ($OrderString-- <= 0) { return $QueryArray; }
 			}
 			$QueryArray[] = $RowArray;
-			
 		}
 		if ($Echo && ($Echo != 'Query')) { EchoV(array('$Query'=>$Query, '$QueryArray'=>$QueryArray)); }
 		return ((is_array($QueryArray) && count($QueryArray)) ? ($QueryArray) : (0));
@@ -739,10 +645,10 @@ class DatabaseObj {
 	
 	
 	// Returns an array representing the field data for a single entry based on its _pri ID. $ArrayCtrl is used to specify the format of the returned array, as MYSQL_BOTH, MYSQL_NUM, or defaults to MYSQL_ASSOC.
-	function IDQuery($TableName, $ThisID, $ArrayCtrl=0) {
+	function IDQuery($TableName, $ThisID, $ArrayCtrl=0, $Echo=0) {
 		if (!$ThisID) { return; }
 		$TableArray = $this->SelectQuery($TableName, $ThisID, null, null, $ArrayCtrl);
-		//echo "<p>db_obj.php DatabaseObj->IDQuery() \$TableArray: |".HtmlArray($TableArray)."|</p>\n";
+		if ($Echo) { EchoV(array('$TableName'=>$TableName,'$ThisID'=>$ThisID,'$TableArray'=>$TableArray)); }
 		if (is_array($TableArray)) { return $TableArray[0]; }
 	}
 	
@@ -767,7 +673,7 @@ class DatabaseObj {
 	}
 	
 	
-	// Returns 1 if an entry ID exists in $TableName, null otherwise. $ThisID can also be an ItemArray.
+	// Returns 1 if an entry ID exists in $TableName, null otherwise. $ThisID can also be an ItemArray to filter for attribute comparison.
 	function CheckQuery($TableName, $ThisID) {
 		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant and too cumbersome for such a common query?
 		if (is_array($ThisID)) {
@@ -788,14 +694,14 @@ class DatabaseObj {
 	
 	// Returns a single ID value for a _pri item based on field value(s) passed. If more than one result, returns the first in order. Parameters function like those in SelectQuery.
 	function IDFromValue($TableName, $ItemArray=0, $OrderString=0, $Echo=0) {
-		//echo "<p>DatabaseObj.php DatabaseObj->IDFromValue() \$TableName: |{$TableName}|, \$ItemArray: |".HtmlArray($ItemArray)."|, \$OrderString: |{$OrderString}|</p>\n";
+		if ($Echo) { EchoV(array('$TableName'=>$TableName,'$ThisID'=>$ThisID,'$TableArray'=>$TableArray), 'Initial values'); }
 		if ($ItemArray && !is_array($ItemArray) && is_string($ItemArray)) { $ItemArray = array('Name'=>$ItemArray); }  // Fix? May be pointless to have this option?
 		$TableArray = $this->SelectQuery($TableName, $ItemArray, $OrderString, $Echo);
 		if (is_array($TableArray)) { $ItemArray = $TableArray[0]; } else { return; }
 		if (is_array($ItemArray)) {
 			$ThisKey = $this->GetKey($TableName);
 			$ThisID = $ItemArray[$ThisKey];
-			//echo "<p>DatabaseObj.php DatabaseObj->IDFromValue() \$ThisID: |{$ThisID}|</p>\n";
+			if ($Echo) { EchoV(array('$TableName'=>$TableName,'$ItemArray'=>$ItemArray,'$ThisID'=>$ThisID)); }
 			return $ThisID;
 		}
 	}
@@ -831,11 +737,11 @@ class DatabaseObj {
 	
 	
 	// Returns the max value for $MaxField in $TableName, with conditionals in $ItemArray if desired. if ($FullReturn), it will return the entire row.
-	function MaxQuery($TableName, $MaxField, $ItemArray=0, $FullReturn=0, $Echo=0) {
+	function MaxQuery($TableName, $MaxField, $ItemArray=0, $FullReturn=0, $Echo=0) {  // Fix! This needs completely rebuilt.
 		$Query = "SELECT MAX({$MaxField}) AS {$MaxField} FROM {$TableName}";
 		$Query .= ParseItemArray($ItemArray);
 		if ($Echo) { echo "<p>DatabaseObj->MaxQuery() \$Query: |{$Query}|</p>\n"; }
-		if (!$Result = $this->db_query($Query, $this->SrvRsc)) {
+		if (!$Result = $this->db_query($Query)) {
 			if ($Echo) { echo "<p>DatabaseObj->MaxQuery() This Query Obtained no Result. Returning NULL.</p>\n"; }
 			return;
 		}
@@ -847,35 +753,14 @@ class DatabaseObj {
 	}
 	
 	
-	// Depreciated, use SelectQuery(). Performs simple queries in a single line. $KeyValue is the value checked for in $KeyField. If !$KeyField, it will use the primary field for the table. Returns a 2D array containing all rows returned using the specified query values. $OrderBy can be a string, sorting the results by the fields named in the string as a standard SQL argument for a query using ORDER BY. $ArrayCtrl is used to specify the format of the returned array, as MYSQL_BOTH, MYSQL_NUM, or defaults to MYSQL_ASSOC.
-	function QueryArray($TableName, $KeyValue, $KeyField='', $OrderBy='', $ArrayCtrl=0) {
-		//echo "<p>db_obj.php DatabaseObj->QueryArray() \$TableName: |{$TableName}|, \$KeyValue: |{$KeyValue}|, \$KeyField: |{$KeyField}|, \$OrderBy: |{$OrderBy}|</p>\n";
-		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant.
-		if (!$KeyField) { $KeyField = $this->GetKey($TableName); }
-		$Query = "SELECT * FROM {$TableName} WHERE {$KeyField} = '{$KeyValue}'";
-		if ($OrderBy) { $Query .= " ORDER BY {$OrderBy}"; }
-		if (!$ArrayCtrl) { $ArrayCtrl = MYSQL_ASSOC; }  // MYSQL_BOTH; MYSQL_NUM;
-
-		//echo "<p>db_obj.php DatabaseObj->QueryArray() \$Query: |{$Query}|</p>\n";
-		$Result = $this->db_query($Query, $this->SrvRsc);
-		while ($RowArray = $this->db_fetch_array($Result, $ArrayCtrl)) {
-			$TableArray[] = $RowArray;
-			// if (count($TableArray) >= $CutOff) { break; }  // Fix? May want this...
-		}
-		// if (count($TableArray) < 1) { $TableArray = array(0); }  // Fix? For array consistency?
-		//echo "<p>db_obj.php DatabaseObj->QueryArray() \$TableArray: |".HtmlArray($TableArray)."|</p>\n";
-		return $TableArray;
-	}
-	
-	
-	
 	
 	// Data Entry and Deletion Functions:  /////////////////
 	
 	
+	
 	// Used to insert data in an array into the specified table. It will create a new entry for the item and return its ID. If (!$ItemArray) a new empty entry will be created. If ($ItemArray) it will match the column values with the corresponding array keys, skipping those missing or that do not match up. Otherwise it will insert the data sequentially, starting with THE *FIRST FIELD FOLLOWING THE ID FIELD* for $ItemArray[0]. The first field column in a _pri table is reserved as its Primary Key field, and as such cannot be used to specify an insert ID nor used as a field value in $FieldArray. $RemainingArray should be passed by reference to retrieve the values not successfully inserted but instead is inserted into $this->RemainingArray referenced by $TableName.
 	function InsertQuery($TableName, $ItemArray=0, $Echo=0) {  // Fix. $RemainingArray should be passed by reference to retrieve the remaining items from the calling function. Parse Error in pre 5.x php
-		//if ($Echo) { EchoV(array('$TableName'=>$TableName, '$ItemArray'=>$ItemArray), 'New InsertQuery() called.'); } 
+		if ($Echo) { EchoV(array('$TableName'=>$TableName,'$ItemArray'=>$ItemArray,'$Echo'=>$Echo)); }
 		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant.
 		$ItemArray = $this->MatchFieldArray($TableName, $ItemArray, $Echo);
 		foreach($ItemArray as $ThisField=>$ThisItem) { 
@@ -887,15 +772,14 @@ class DatabaseObj {
 		$DataString = ltrim($DataString, ',');
 		//echo "<p>DatabaseObj.php InsertQuery()  \$ItemArray: " . HtmlArray($ItemArray) . "</p>\n";
 		$Query = "INSERT INTO {$TableName} ({$FieldString}) VALUES ({$DataString})"; 
-		if ($Echo) { echo "<p>DatabaseObj->InsertQuery() \$Query: |{$Query}|</p>\n"; }
 		if ($this->DbType=='postgres') {
 			$Query .= 'RETURNING '.$this->GetKey($TableName);
-			$NewID = $this->db_query($Query, $this->SrvRsc) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . db_error());  //  . EchoV());
+			$NewID = $this->db_query($Query) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . db_error());  //  . EchoV());
 		} else if ($this->DbType=='mysql') {
-			$Result = $this->db_query($Query, $this->SrvRsc) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . db_error());  //  . EchoV());
+			$Result = $this->db_query($Query) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . db_error());  //  . EchoV());
 			$NewID = mysql_insert_id();
 		}
-		if ($Echo) { echo "<p>DatabaseObj->InsertQuery() \$NewID: |{$NewID}|</p>\n"; }
+		if ($Echo) { EchoV(array('$Query'=>$Query,'$NewID'=>$NewID)); }
 		return $NewID;
 	}
 	
@@ -916,7 +800,6 @@ class DatabaseObj {
 		if (!$TableArray = $this->ListFields($TableName)) { return; }
 		$RemainingArray = array();
 		if (!is_array($ItemArray)) { $ItemArray = array(); } 
-		//if ($Echo) { echo "<p>DatabaseObj->MatchFieldArray() \$TableArray: |".HtmlArray($TableArray)."| <br>\n \$ItemArray: |".HtmlArray($ItemArray)."|</p>\n"; }
 		if (CheckAssocArray($ItemArray)) {  // If using an associative array
 			//if ($Echo) { echo "<p>DatabaseObj->MatchFieldArray() \$ItemArray is an associative array, matching keys to field names for value association.</p>\n"; }
 			foreach($ItemArray as $ThisField=>$ThisValue) {
@@ -970,7 +853,7 @@ class DatabaseObj {
 		$KeyField = $this->GetKey($TableName);
 		$Query .= " WHERE {$KeyField}={$ThisID}";
 		if ($Echo) { echo "<p>DatabaseObj->UpdateQuery() \$Query: |{$Query}|</p>\n"; }
-		$Result = $this->db_query($Query, $this->SrvRsc);
+		$Result = $this->db_query($Query);
 		if ($Echo && !$Result) { echo "<p>DatabaseObj->UpdateQuery() Not Updated! \$Result: |{$Result}|</p>\n"; }
 		return ($Result) ? (1) : (0);
 	}
@@ -993,13 +876,101 @@ class DatabaseObj {
 			$Query = "DELETE FROM {$TableName} WHERE {$KeyField} = '{$ItemsOrID}'";
 		}
 		if ($Echo) { echo "<p>DatabaseObj->DeleteQuery() \$Query: |{$Query}|</p>\n"; }
-		//$Result = $this->db_query($Query, $this->SrvRsc);  // Fix... For multiple entry deletion.
+		//$Result = $this->db_query($Query);  // Fix... For multiple entry deletion.
 		if ($Echo && !$Result) { echo "<p>DatabaseObj->DeleteQuery() Not Deleted! \$Result: |{$Result}|</p>\n"; }
 		return ($Result) ? (1) : (0);
 	}
 
 	
-	// Ref-based Functions:  /////////////////
+	
+	// Ref-based Functions (Emulate native reference-aware object structures):  /////////////////
+	
+	
+	
+	// Checks for the existence of $TableName in this DatabaseObj and its validity as a _ref table. Returns 1 or null.
+	private function CheckRefTable($TableName) {
+		if (!$this->CheckTable($TableName)) { return; }
+		if ($this->SplitTableName($TableName) != 'ref') { return; }
+		$TableArray = $this->TableStruct($TableName);
+		$RefCheck = 'int(10) unsigned';  // The required ID format for the DbObjs.
+		if ($TableArray[0]['Type'] == $RefCheck && $TableArray[1]['Type'] == $RefCheck && $TableArray[2]['Type'] == $RefCheck) { return 1; } // If the first 3 fields of the table are the correct ID format.
+	}
+	
+	
+	// Returns a 1D array of all table root names referenced with $TableRoot. $UpOrDown specifies whether the reference is to a higher (1, 'Up', or 'up') or lower hierarchial relationship, defaults to downward referencing.
+	private function ListRefRoots($TableRoot, $UpOrDown='Down', $Echo=0) { 
+		$RefTableArray = $this->RefList;
+		if ($Echo) { echo "<p>DatabaseObj.php DatabaseObj->ListRootRefs() \$TableRoot: |{$TableRoot}|, \$UpOrDown: |{$UpOrDown}|, \$RefTableArray: |".HtmlArray($RefTableArray)."|, \$Echo: |{$Echo}|</p>\n"; }
+		if (!is_array($RefTableArray) || !count($RefTableArray) || !is_array($RefTableArray[0]) || !count($RefTableArray[0])) { 
+			if ($Echo) { echo "<p>DatabaseObj.php DatabaseObj->ListRootRefs() \$this->RefList[0] not set.  No {$UpOrDown}ward references to name root {$TableRoot} in this DatabaseObj.</p>\n"; }
+			return; 
+		}
+		
+		if ($UpOrDown == 1 || $UpOrDown == 'Up' || $UpOrDown == 'up') {  // Looking for upward references.
+			if (!$KeyList = array_keys($RefTableArray[1], $TableRoot)) { 
+				if ($Echo) { echo "<p>DbObj.php DatabaseObj->ListRootRefs() No upward references to name root {$TableRoot} in this DatabaseObj.</p>\n"; }
+				return; 
+			}
+			foreach($KeyList as $SlotNum) { $RefRootList[] = $RefTableArray[0][$SlotNum]; }
+		} else {  // Looking for downward references.
+			if (!$KeyList = array_keys($RefTableArray[0], $TableRoot)) { 
+				if ($Echo) { echo "<p>DatabaseObj.php DatabaseObj->ListRootRefs() No downward references from name root {$TableRoot} in this DatabaseObj.</p>\n"; }
+				return; 
+			}
+			foreach($KeyList as $SlotNum) { $RefRootList[] = $RefTableArray[1][$SlotNum]; }
+		}
+		
+		if ($Echo) { echo "<p>DatabaseObj.php DatabaseObj->ListRootRefs() \$TableRoot: |{$TableRoot}|, \$UpOrDown: |{$UpOrDown}|, \$RefRootList: |".HtmlArray($RefRootList)."|, \$Echo: |{$Echo}|</p>\n"; }
+		return $RefRootList;
+	}
+	
+	
+	// Returns all full table names that contain reference to $TableRoot. $UpOrDown specifies whether the reference is to a higher (1, 'Up', or 'up') or lower hierarchial relationship, defaults to downward referencing.
+	private function ListRefTables($TableRoot, $UpOrDown='Down', $Echo=0) {
+		if (!$RootList = $this->ListRefRoots($TableRoot, $UpOrDown, $Echo || !is_array($RootList))) { return; }
+		if ($UpOrDown == 1 || $UpOrDown == 'Up' || $UpOrDown == 'up') {
+			foreach($RootList as $RefRoot) { $TableList[] = "{$RefRoot}_{$TableRoot}_ref"; }
+		} else {
+			foreach($RootList as $RefRoot) { $TableList[] = "{$TableRoot}_{$RefRoot}_ref"; }
+		}
+		//echo "<p>DbObj.php DatabaseObj->ListRefTables() \$TableList: |".HtmlArray($TableList)."|</p>\n";
+		return $TableList;
+	}
+	
+	
+	// Goes through each table's structure to determine internal references to other table keys by "{$TableName}ID" and sorts them in $this->LnkList.
+	private function LoadLnkList($Echo=0) {
+		$TableList = $this->PriList;
+		if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() \$Echo: |{$Echo}|, \$TableList: |".HtmlArray($TableList)."|</p>\n"; }
+		foreach($TableList as $TableName) {
+			$FieldList = $this->ListFields("{$TableName}_pri");
+			if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() \$TableName: |{$TableName}|, \$FieldList: |".HtmlArray($FieldList)."|</p>\n"; }
+			foreach($FieldList as $FieldName) {
+				if (substr($FieldName, -2) == "ID" && $FieldName != "{$TableName}ID") {  // If this is an ID field, and not the table's primary key.
+					$FieldMod = rtrim($FieldName, "ID");  // Fix. This may strip either 'I' or 'D' in cases where it is not an exact match.
+					if (in_array($FieldMod, $TableList)) {
+						if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() Found \"{$FieldMod}\" in \$TableList</p>\n"; }
+						$this->LnkList[$FieldMod][] = $TableName;
+					} else {
+						$Found = 0;
+						foreach($TableList as $TableCheck) {
+							if ($StrLoc = strpos($FieldName, "{$TableCheck}ID") !== FALSE) {  // To include compounded names (as in ParentItemID or BeforeImageID, etc.)
+								if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() strpos() found \$TableCheck: |{$TableCheck}ID| in \$FieldName: |{$FieldName}| at \$StrLoc: |{$StrLoc}|</p>\n"; }
+								$this->LnkList[$TableCheck][] = $TableName;
+								$Found = 1;
+							}
+						}
+						if (!$Found) {
+							if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() Unrecognized \$FieldName: |\"{$FieldName}\"|</p>\n"; }
+							$this->BadLnkList[$TableName][] = $FieldName;
+							// Unrecognized ID Reference.
+						}
+					}
+				}
+			}
+		}
+		if ($Echo) { echo "<p>DatabaseObj->LoadLnkList() \$this->LnkList: |".HtmlArray($this->LnkList)."|</p>\n"; }
+	}
 	
 	
 	// Returns a 2D array containing all entries matching $PriID or/and $RefID. If either are null, will return all entries matching the other. Uses the standard _ref table format. If both are null, it will return null. (Fix?)
@@ -1050,7 +1021,7 @@ class DatabaseObj {
 	// Gets the RefEntry field name value for a _ref table. (Meaning the first field in a _ref structured table, the unique key and incremented field for the table.).
 	function GetRefEntry($ThisTable) {
 		$Query = "DESCRIBE {$ThisTable}";
-		if (!$Result = $this->db_query($Query, $this->SrvRsc)) { return; }
+		if (!$Result = $this->db_query($Query)) { return; }
 		while ($ThisRow = $this->db_fetch_row($Result)) { return $ThisRow[0]; }
 		echo "<p>No Reference ID Field Found for {$ThisTable}</p>\n";  // Fix? Just delete this line?
 	}
@@ -1063,7 +1034,9 @@ class DatabaseObj {
 	}
 	
 	
+	
 	// Table Manipulation Functions:  /////////////////
+	
 	
 	
 	// Drops one or more tables from this db. $TableNames can be a space separated string or an array of strings, if '*' all tables will be dropped.  Be careful with this function!
@@ -1092,7 +1065,7 @@ class DatabaseObj {
 		}*/
 		$Query = "DROP TABLE IF EXISTS {$TableString}";
 		if ($Echo) { echo "<p>DatabaseObj->DropTable() \$Query: '{$Query}'.</p>\n"; }
-		$Result = $this->db_query($Query, $this->SrvRsc);
+		$Result = $this->db_query($Query);
 		foreach($TableNames as $Table) {  // Unfortunately this seems necessary as none of the built-in functions that I could find return a table drop count.
 			if (!$this->CheckTable($Table)) {
 				$NumDropped++; 
@@ -1103,9 +1076,9 @@ class DatabaseObj {
 		if ($Echo) {
 			EchoV(array('Result'=>$Result, 'NumDropped'=>$NumDropped));  
 			if (!$NumDropped) {
-				echo "<p>DatabaseObj->DropTable() Error Dropping table{$Multi} '{$TableString}'! Error: <font color=red>|".db_error($this->SrvRsc)."|</font></p>\n";
+				echo "<p>DatabaseObj->DropTable() Error Dropping table{$Multi} '{$TableString}'! Error: <font color=red>|".$this->db_error($this->SrvRsc)."|</font></p>\n";
 			} else if ($NumDropped != $DropCount) {
-				echo "<p>DatabaseObj->DropTable() Error Dropping some tables: |{$MissedString}| ({$NumDropped} out of {$DropCount}) from intended |{$TableString}|. Error: <font color=red>|".db_error($this->SrvRsc)."|</font></p>\n";
+				echo "<p>DatabaseObj->DropTable() Error Dropping some tables: |{$MissedString}| ({$NumDropped} out of {$DropCount}) from intended |{$TableString}|. Error: <font color=red>|".$this->db_error($this->SrvRsc)."|</font></p>\n";
 			} else {
 				echo "<p>DatabaseObj->DropTable() <font color=green>Successfully Dropped table{$Multi} |{$TableString}|</font>.  (\$NumDropped: {$NumDropped} out of {$DropCount}).</p>\n";
 			}
@@ -1114,7 +1087,9 @@ class DatabaseObj {
 	}
 	
 	
+	
 	// SQL Import and Export, Table and Database Add/Drop Functions:  /////////////////
+	
 	
 	
 	// Runs queries from a .sql file $PathAndFile.  Returns 1 on success, or 0 if errors were encountered. // Fix!  Need to determine security, behavior, error handling, etc.
@@ -1152,9 +1127,9 @@ class DatabaseObj {
 			if ($Query = $this->FormatQuery($QueryLine, $Echo)) {
 				//if ($Echo) { echo "<p>DatabaseObj->ParseSqlString() Re-formatted \$Query:</br>|<b>{$Query}</b>|</p>\n"; }
 				if ($this->CommandChecks(($Query.=';'), $Echo, $Force)) {
-					if (!$Result = $this->db_query($Query, $this->SrvRsc)) { 
+					if (!$Result = $this->db_query($Query)) { 
 						$ErrorCount++;
-						if ($Echo) { echo "<font color=red>Error: ".db_error($this->SrvRsc)."<br>\n"; }
+						if ($Echo) { echo "<font color=red>Error: ".$this->db_error($this->SrvRsc)."<br>\n"; }
 					} else {
 						if ($Echo) { echo "<font color=green>Successfully executed SQL query.<br>\n"; }
 						//$this->QueryFollowup($Query);  // Handle special-case administration for this query.

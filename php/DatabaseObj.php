@@ -22,6 +22,7 @@ class DatabaseObj {
 	private $ThisID;  // The ID for this Database, if applicable. // Fix. Should use an aceID for this.
 	private $IsLoaded;  // Bool, indicates whether this Database loaded successfully or not.
 	private $SrvRsc;  // The resource link used to access this database on the server.
+	private $LastCallRsc;  // Keeps the result resource for the last call, used when returning rows.
 	private $DbType;  // The type of db represented by this object. Can be 'mysql', 'postgres', etc.
 	private $DbName;  // The name of the database to load objects from.
 	private $DbHost;  // The host location of this database.
@@ -136,34 +137,74 @@ class DatabaseObj {
 	}
 	
 	
-	// Provides abstraction for universal db query across various implementations.
-	public function db_query($Query, $Echo=0) {  // Fix!
+	// Provides abstraction for universal db query across various implementations.        // Fix? ($Returns can be used to return 'json', 'assoc', 'num', 'both', or default to returning the server resource in order to do this manually.)
+	public function db_query($Query) {  // Fix? $Returns option could be useful... , $Returns=0, $Echo=0) {
 		$SrvRsc = $this->SrvRsc;
-		if ($Echo) { EchoV(array('Query'=>$Query,'SrvRsc'=>$SrvRsc)); }
+		// if ($Echo) { EchoV(array('Query'=>$Query,'Returns'=>$Returns)); }  // Fix?
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$SrvRsc = pg_query($SrvRsc, $Query);
 		} else if ($this->DbType == 'mysql') {
 			$SrvRsc = mysql_query($Query, $SrvRsc);
 		}
-		return $SrvRsc;
+		return $this->LastCallRsc = $SrvRsc;
+		// if ($Returns) {
+			// if ($Returns=='json') {
+				// $Returns = 'assoc';
+				// $Json = true;
+			// }
+			// while ($RowArray = $this->db_fetch_array($SrvRsc, $Returns)) {
+				// $QueryArray[] = $RowArray;
+			// }
+			// if ($Echo) { EchoV(array('QueryArray'=>$QueryArray,'Returns'=>$Returns)); }
+			// return $Json ? json_encode($QueryArray) : $QueryArray;
+		// }
+		// return $SrvRsc;
 	}
 	
 	
-	// Provides abstraction for universal fetch_array functionality across various implementations.
-	protected function db_fetch_array($SrvRsc=0) {
-		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
+	// Provides abstraction for universal fetch_array functionality across various implementations. $Returns can be used to return 'assoc', 'num', or defaults to 'both'.
+	protected function db_fetch_array($SrvRsc=0, $Returns=0, $Echo=0) {
+		if (!$SrvRsc) { $SrvRsc = $this->LastCallRsc; }
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
-			$NumRows = pg_fetch_array($SrvRsc);
+			if ($Returns=='assoc' || $Returns=='ASSOC') {
+				$Returns = PGSQL_ASSOC;
+			} else if ($Returns=='num' || $Returns=='NUM') {
+				$Returns = PGSQL_NUM;
+			} else {
+				$Returns = NULL;
+			}
+			$FetchedArray = pg_fetch_array($SrvRsc, NULL, $Returns);
 		} else if ($this->DbType == 'mysql') {
-			$NumRows = mysql_fetch_array($SrvRsc);
+			if ($Returns=='assoc' || $Returns=='ASSOC') {
+				$Returns = MYSQL_ASSOC;
+			} else if ($Returns=='num' || $Returns=='NUM') {
+				$Returns = MYSQL_NUM;
+			} else {
+				$Returns = NULL;
+			}
+			$FetchedArray = mysql_fetch_array($SrvRsc, $Returns);
 		}
-		return $NumRows;
+		if ($Echo) { EchoV(array('FetchedArray'=>$FetchedArray,'SrvRsc'=>$SrvRsc)); }
+		return $FetchedArray;
 	}
 	
 
+	// Provides abstraction for universal fetch_row functionality across various implementations.
+	protected function db_fetch_row($SrvRsc=0, $Echo=0) {
+		if (!$SrvRsc) { $SrvRsc = $this->LastCallRsc; }
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$Row = pg_fetch_row($SrvRsc);
+		} else if ($this->DbType == 'mysql') {
+			$Row = mysql_fetch_row($SrvRsc);
+		}
+		if ($Echo) { EchoV(array('Row'=>$Row)); }
+		return $Row;
+	}
+	
+	
 	// Provides abstraction for universal num_rows functionality across various implementations.
 	protected function db_num_rows($SrvRsc=0) {
-		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
+		if (!$SrvRsc) { $SrvRsc = $this->LastCallRsc; }
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
 			$NumRows = pg_num_rows($SrvRsc);
 		} else if ($this->DbType == 'mysql') {
@@ -173,27 +214,27 @@ class DatabaseObj {
 	}
 	
 
-	// Provides abstraction for universal fetch_row functionality across various implementations.
-	protected function db_fetch_row($SrvRsc=0) {
-		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
-		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
-			$NumRows = pg_fetch_row($SrvRsc);
-		} else if ($this->DbType == 'mysql') {
-			$NumRows = mysql_fetch_row($SrvRsc);
-		}
-		return $NumRows;
-	}
-	
-	
 	// Provides abstraction for universal error functionality across various implementations.
 	protected function db_error($SrvRsc=0) {
 		if (!$SrvRsc) { $SrvRsc = $this->SrvRsc; }  // Fix? May want to only allow access to internal $this->SrvRsc;
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
-			$NumRows = pg_last_error($SrvRsc);
+			$Error = pg_last_error($SrvRsc);
 		} else if ($this->DbType == 'mysql') {
-			$NumRows = mysql_error($SrvRsc);
+			$Error = mysql_error($SrvRsc);
 		}
-		return $NumRows;
+		return $Error;
+	}
+	
+	
+	// Provides abstraction for universal error functionality across various implementations.
+	protected function db_escape_string($Str) {
+		$SrvRsc = $this->SrvRsc;
+		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			$Str = pg_escape_string($SrvRsc, $Str);
+		} else if ($this->DbType == 'mysql') {
+			$Str = mysql_real_escape_string($Str, $SrvRsc);
+		}
+		return $Str;
 	}
 	
 	
@@ -403,7 +444,7 @@ class DatabaseObj {
 	function ListTables($Echo=0) {  // Fix? Check speed against specifying single row item during actual query.
 		if ($this->TableList) { return $this->TableList; }
 		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
-			$Query = 'SELECT "tablename" from "pg_tables" WHERE "schemaname" = \'public\''; // Fix.  Stupid, stupid syntax... Must be better way?
+			$Query = 'SELECT "tablename" from "pg_tables" WHERE "schemaname"=\'public\''; // Fix.  Stupid, stupid syntax... Must be better way?
 		} else if ($this->DbType == 'mysql') {
 			$Query = "SHOW TABLES"; //  FROM '{$DbName}'";  
 		}
@@ -437,37 +478,48 @@ class DatabaseObj {
 	
 	// Returns a 2D array with structure details for $TableName.
 	private function TableStruct($TableName, $Echo=0) {
-		if (!$this->CheckTable($TableName)) { return; }
+		if (!$this->CheckTable($TableName, $Echo)) { return; }
 		if (array_key_exists($TableName, $this->TableArray) && is_array($TableArray=$this->TableArray[$TableName])) { return $TableArray; }
-		if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
-			$Query = 'SELECT "tablename" from "columns" WHERE "table_name"=\''.$TableName.'\', "table_schema"=\'public\' ORDER BY "ordinal_position"';
-		} else if ($this->DbType == 'mysql') {
-			$Query = "SHOW COLUMNS FROM {$TableName}";
+		// if ($this->DbType == 'postgres') {  // Fix. Centralize the DbType to a class function and extend from base object.
+			// // $Query = 'SELECT * FROM "columns" WHERE "table_schema" = \'public\' AND "table_name" = \''.$TableName.'\'';
+			// // $Query = 'SELECT attname from pg_attribute WHERE "table_name"=\''.$TableName.'\' AND "table_schema"=\'public\' ORDER BY "ordinal_position"';
+			// // $Query = 'SELECT "attname" from "pg_attribute"';// WHERE "table_schema"=\'public\'';// ORDER BY "ordinal_position"';
+			// // $Query = 'SELECT current_schemas(TRUE)';
+			// $Query = 'SELECT * FROM "'.$TableName.'" LIMIT 1';
+		// } else if ($this->DbType == 'mysql') {
+			// $Query = "SHOW COLUMNS FROM {$TableName}";
+		// }
+		$Query = 'SELECT * FROM "'.$TableName.'" LIMIT 1';  // Fix. Quick hack to work around Postgres.  Should ideally reference true column structure.
+		$Result = $this->db_query($Query, $Echo);
+		while ($Result && ($Row=$this->db_fetch_array($Result))) { $TableArray[] = $Row; }
+		foreach($TableArray[0] as $Key=>$Val) { 
+			if (!is_numeric($Key)) { $FieldArray[$Key] = array(); } // Fix. Include actual column properties
 		}
-		$Result = $this->db_query($Query);
-		while ($Row = $this->db_fetch_array($Result, MYSQL_ASSOC)) { $TableArray[] = $Row; }
-		if ($Echo) { EchoV(array('Query'=>$Query,'TableArray'=>$TableArray)); }
-		return $this->TableArray[$TableName]=$TableArray;
+		if ($Echo) { EchoV(array('Query'=>$Query,'TableArray'=>$TableArray,'FieldArray'=>$FieldArray)); }
+		return $this->TableArray[$TableName]=$FieldArray;
 	}
 	
 	
 	// Returns a 1D of all fields in this table, in their column order.
-	private function ListFields($TableName) {
-		if (!$TableArray=$this->TableStruct($TableName)) { return; }
+	private function ListFields($TableName, $Echo=0) {
+		if (!$TableArray=$this->TableStruct($TableName, $Echo)) { return; }
 		foreach($TableArray as $FieldName=>$FieldProps) { $FieldList[]=$FieldName; }
+		if ($Echo) { EchoV(array('TableName'=>$TableName,'FieldList'=>$FieldList)); }
 		return $FieldList;
 	}
 	
 	
 	// Returns true or false depending on whether $FieldName is a field in $TableName.
-	function CheckField($TableName, $FieldName) {
-		if (!$FieldList=$this->ListFields($TableName)) { return; }
-		return ((in_array($FieldName,$FieldList)) ? TRUE : FALSE);
+	function CheckField($TableName, $FieldName, $Echo=0) {
+		if (!$TableArray=$this->TableStruct($TableName, $Echo)) { return; }
+		$Check = array_key_exists($FieldName,$TableArray);
+		if ($Echo) { EchoV('Field "'.$FieldName.'" '.($Check?'DOES':'does NOT').' exist in table "'.$TableName.'".'); }
+		return $Check;
 	}
 	
 	
 	// Returns the Primary Index Key for the table $ThisTable.
-	function GetKey($TableName) {
+	function GetKey($TableName, $Echo=0) {
 		if (!$FieldName=$this->FieldSlotName($TableName)) { return; }
 		return $FieldName;  // Fix! Relies on table column order. Just quick hack, make this work effectively for Postgres.
 		
@@ -507,16 +559,16 @@ class DatabaseObj {
 	
 	
 	// Do NOT call directly; no security.  Used INTERNALLY to perform standard SQL queries on a DatabaseObj. 
-	private function Query($Query=0, $Echo=0, $ArrayCtrl=0) {  //  Fix! Implememt restrictions and security.
+	public function Query($Query=0, $Echo=0, $ArrayCtrl=0) {  //  Fix! Made public for testing only.  Implememt restrictions and security.
 		if (!$Query) { return; }
 		$Query = $this->FormatQuery($Query, $Echo);
-		if (!$Result = $this->$this->db_query($Query)) {
-			if ($Echo) { echo "<p>DatabaseObj->Query() This Query Obtained no Result. Returning NULL.</p>\n"; }
+		if (!$Result = $this->db_query($Query)) {
+			if ($Echo) { EchoV(array('Query'=>$Query), 'This Query Obtained no Result. Returning NULL.'); }
 			return;
 		}
-		if (!$ArrayCtrl) { $ArrayCtrl = MYSQL_ASSOC; }  // MYSQL_BOTH; MYSQL_NUM;
+		if (!$ArrayCtrl) { $ArrayCtrl = 'assoc'; }  // Fix?  // MYSQL_ASSOC; }  // MYSQL_BOTH; MYSQL_NUM;
 		while ($RowArray = $this->db_fetch_array($Result, $ArrayCtrl)) { $QueryArray[] = $RowArray; }
-		if ($Echo) { echo "<p>DatabaseObj->Query() \$QueryArray: |".HtmlArray($QueryArray)."|</p>\n"; }
+		if ($Echo) { EchoV(array('Query'=>$Query,'QueryArray'=>$QueryArray)); }
 		return $QueryArray;
 	}
 	
@@ -621,7 +673,7 @@ class DatabaseObj {
 	}
 	
 	
-	// Used to match queries with multiple parameters using a simple interface. $ItemArray is array('FieldName'=>'Value', 'FieldName'=>'Value') for all required fields in the query, returned ordered in the order they are passed. '<', '>', '<=', '>=' can be included at the beginning of the 'Value' portion of $ItemArray to do comparison operations. If other order is wanted, $OrderString is used directly as "ORDER BY {$OrderString}" and can include DESCENDING if desired; if -1 it will return a single row without the containing array, and any other number will return an array with that number of rows. $ItemArray can also be a single value to match with the primary key, or even null, 0, or '*' to return the entire table contents. $Echo can be used to echo the results of several aspects of the query as well as to echo $Echo itself to pass messages from calling functions. ArrayCtrl is used to specify the format of the returned array, as MYSQL_BOTH, MYSQL_NUM, or defaults to MYSQL_ASSOC. 
+	// Used to match queries with multiple parameters using a simple interface. $ItemArray is array('FieldName'=>'Value', 'FieldName'=>'Value') for all required fields in the query, returned ordered in the order they are passed. '<', '>', '<=', '>=' can be included at the beginning of the 'Value' portion of $ItemArray to do comparison operations. If other order is wanted, $OrderString is used directly as "ORDER BY {$OrderString}" and can include DESCENDING if desired; if -1 it will return a single row without the containing array, and any other number will return an array with that number of rows. $ItemArray can also be a single value to match with the primary key, or even null, 0, or '*' to return the entire table contents. $Echo can be used to echo the results of several aspects of the query as well as to echo $Echo itself to pass messages from calling functions. ArrayCtrl is used to specify the format of the returned array, as 'assoc', 'array', or defaults to 'both'. 
 	function SelectQuery($TableName, $ItemArray=0, $OrderString=0, $Echo=0, $ArrayCtrl=0) {
 		if (!$this->CheckTable($TableName, $Echo)) { return; }
 		$Query = "SELECT * FROM \"{$TableName}\"";
@@ -630,7 +682,7 @@ class DatabaseObj {
 			if ($Echo) { EchoV(array('$Query'=>$Query), 'This Query Obtained no Result. Returning NULL.'); }
 			return;
 		}
-		if (!$ArrayCtrl) { $ArrayCtrl = MYSQL_ASSOC; }  // MYSQL_BOTH; MYSQL_NUM;
+		// if (!$ArrayCtrl) { $ArrayCtrl = MYSQL_ASSOC; }  // MYSQL_BOTH; MYSQL_NUM;
 		while ($RowArray = $this->db_fetch_array($Result, $ArrayCtrl)) {
 			if ($NumberOrdered || ($OrderString && !is_string($OrderString) && is_numeric($OrderString))) {
 				$NumberOrdered = true;
@@ -758,25 +810,27 @@ class DatabaseObj {
 	
 	
 	
-	// Used to insert data in an array into the specified table. It will create a new entry for the item and return its ID. If (!$ItemArray) a new empty entry will be created. If ($ItemArray) it will match the column values with the corresponding array keys, skipping those missing or that do not match up. Otherwise it will insert the data sequentially, starting with THE *FIRST FIELD FOLLOWING THE ID FIELD* for $ItemArray[0]. The first field column in a _pri table is reserved as its Primary Key field, and as such cannot be used to specify an insert ID nor used as a field value in $FieldArray. $RemainingArray should be passed by reference to retrieve the values not successfully inserted but instead is inserted into $this->RemainingArray referenced by $TableName.
-	function InsertQuery($TableName, $ItemArray=0, $Echo=0) {  // Fix. $RemainingArray should be passed by reference to retrieve the remaining items from the calling function. Parse Error in pre 5.x php
-		if ($Echo) { EchoV(array('$TableName'=>$TableName,'$ItemArray'=>$ItemArray,'$Echo'=>$Echo)); }
-		if (!$this->CheckTable($TableName)) { return; }  // Fix? May be redundant.
-		$ItemArray = $this->MatchFieldArray($TableName, $ItemArray, $Echo);
-		foreach($ItemArray as $ThisField=>$ThisItem) { 
-				$FieldString .= (($n++) ? (',') : ('')) . $ThisField;
-				$ThisItem = $this->SafeInsertString($ThisField, $ThisItem);
-				$DataString .= ($ThisItem == 'NOW()') ? (",{$ThisItem}") : (",'{$ThisItem}'");  // Fix this bullshit. problem passing quotes from a function.
-				//echo "<p>DatabaseObj->InsertQuery() \$SafeInsertString: |{$SafeInsertString}|, \$DataString: |{$DataString}|</p>\n";
+	// Used to insert data in an array into the specified table. $ItemArray is formatted as array('FieldName'=>$Value, ...), FieldName columns not present in TableName will simply be dropped from the insert, but remain in $ItemArray which is passed by reference and so persists.  // Fix?
+	function InsertQuery($TableName, $ItemArray=0, $Echo=0) {  // Fix? Removed &$ItemArray reference operator for directly passed instances that don't support it. 
+		if ($Echo) { EchoV(array('$TableName'=>$TableName,'$ItemArray'=>$ItemArray)); }
+		if (!$this->CheckTable($TableName, $Echo)) { return; }
+		foreach($ItemArray as $FieldName=>$Value) { 
+			if ($this->CheckField($TableName, $FieldName)) {
+				$FieldString .= (($n++) ? (',') : ('')) . '"'.$FieldName.'"';
+				$Value = $this->SafeInsertVal($Value);
+				$DataString .= ($Value == 'NOW()') ? (",{$Value}") : (",'{$Value}'");  // Fix this bullshit. problem passing quotes from a function.
+				//unset($ItemArray[$FieldName]);  // Fix? May result in weird behavior for stepped instance.
 			}
+		}
 		$DataString = ltrim($DataString, ',');
-		//echo "<p>DatabaseObj.php InsertQuery()  \$ItemArray: " . HtmlArray($ItemArray) . "</p>\n";
-		$Query = "INSERT INTO {$TableName} ({$FieldString}) VALUES ({$DataString})"; 
+		if ($Echo) { EchoV(array('$ItemArray'=>$ItemArray), 'After modification'); }
+		$Query = "INSERT INTO \"{$TableName}\" ({$FieldString}) VALUES ({$DataString})"; 
 		if ($this->DbType=='postgres') {
-			$Query .= 'RETURNING '.$this->GetKey($TableName);
-			$NewID = $this->db_query($Query) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . db_error());  //  . EchoV());
+			$Query .= ' RETURNING "'.$this->GetKey($TableName).'"';
+			$Result = $this->db_query($Query);
+			$NewID = pg_query($this->SrvRsc, "SELECT currval(\"{$TableName}_seq\")");
 		} else if ($this->DbType=='mysql') {
-			$Result = $this->db_query($Query) or die ('DatabaseObj->InsertQuery() Unable to add entry for Query ('.$Query.'): ' . db_error());  //  . EchoV());
+			$Result = $this->db_query($Query);
 			$NewID = mysql_insert_id();
 		}
 		if ($Echo) { EchoV(array('$Query'=>$Query,'$NewID'=>$NewID)); }
@@ -785,11 +839,11 @@ class DatabaseObj {
 	
 	
 	// Cleans up string data for safe insertion into database.
-	function SafeInsertString($ThisField, $ThisItem) {
+	function SafeInsertVal($ThisItem) {
 		if (!$ThisItem) { return ''; }
 		if (is_string($ThisItem)) { 
 			if(get_magic_quotes_gpc()) { $ThisItem = stripslashes($ThisItem); }
-			$ThisItem = mysql_real_escape_string($ThisItem); 
+			$ThisItem = $this->db_escape_string($ThisItem); 
 		}
 		return $ThisItem;
 	}
@@ -844,9 +898,10 @@ class DatabaseObj {
 		$TableArray = $this->ListFields($TableName);
 		if ($Echo) { echo "<p>DatabaseObj->UpdateQuery() \$TableArray: |".HtmlArray($TableArray)."|</p>\n"; }
 		$Query = "UPDATE {$TableName} SET"; 
-		foreach($ItemArray as $FieldName=>$ThisItem) {
+		foreach($ItemArray as $FieldName=>$Value) {
 			if (in_array($FieldName, $TableArray)) {  // if (array_key_exists($FieldName, $TableArray)) {
-				if (!is_null($ThisItem)) { $Query .= " {$FieldName}='{$ThisItem}',"; }
+				$Value = $this->SafeInsertVal($Value);
+				if (!is_null($Value)) { $Query .= " {$FieldName}='{$Value}',"; }
 			}
 		}
 		$Query = rtrim($Query, ',');

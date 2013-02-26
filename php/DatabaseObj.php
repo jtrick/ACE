@@ -826,9 +826,10 @@ class DatabaseObj {
 		if ($Echo) { EchoV(array('$ItemArray'=>$ItemArray), 'After modification'); }
 		$Query = "INSERT INTO \"{$TableName}\" ({$FieldString}) VALUES ({$DataString})"; 
 		if ($this->DbType=='postgres') {
-			$Query .= ' RETURNING "'.$this->GetKey($TableName).'"';
-			$Result = $this->db_query($Query);
-			$NewID = pg_query($this->SrvRsc, "SELECT currval(\"{$TableName}_seq\")");
+			$KeyField = $this->GetKey($TableName);
+			$Query .= ' RETURNING "'.$KeyField.'"';
+			$NewID = pg_fetch_result($this->db_query($Query),0,0);  // Fix?
+			// $NewID = pg_fetch_result(pg_query($this->SrvRsc, "SELECT currval('\"{$TableName}_{$KeyField}_seq\"')"),0,0);  // Fix? Ensure works for concurrent connections.
 		} else if ($this->DbType=='mysql') {
 			$Result = $this->db_query($Query);
 			$NewID = mysql_insert_id();
